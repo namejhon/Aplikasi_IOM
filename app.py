@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
+import pytz
 import os
 import requests
 
@@ -176,7 +177,8 @@ def upload_to_google_drive(file_name, file_bytes, mime_type, folder_id):
         return None
 
 def catat_log(item, pesan):
-    waktu_sekarang = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    wib = pytz.timezone('Asia/Jakarta)
+    waktu_sekarang = datetime.now(wib).strftime("%d/%m/%Y %H:%M:%S")
     item['timeline'].append(f"⏱️ **[{waktu_sekarang}]** - {pesan}")
 
 # --- 6. FUNGSI CEK NOTIFIKASI PER DIVISI ---
