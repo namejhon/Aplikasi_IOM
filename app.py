@@ -151,6 +151,24 @@ st.markdown(
         box-shadow: 0 4px 15px -3px rgba(0,0,0,0.03);
         margin-bottom: 20px;
     }
+    
+    /* Style Khusus Timeline */
+    .timeline-item {
+        border-left: 3px solid #6366f1;
+        padding-left: 15px;
+        margin-bottom: 12px;
+        position: relative;
+    }
+    .timeline-item::before {
+        content: '';
+        position: absolute;
+        left: -7px;
+        top: 3px;
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        background-color: #6366f1;
+    }
     </style>
 """,
     unsafe_allow_html=True,
@@ -462,12 +480,12 @@ else:
 
         col_dash1, col_dash2 = st.columns([1.3, 1])
 
-        # BARIS DASHBOARD: PROGRESS WORKFLOW & DIAGRAM PLOTLY
+        # BARIS DASHBOARD: PROGRESS WORKFLOW & TIMELINE LIVE ACTIVITY
         with col_dash1:
             st.markdown(
                 "<div class='content-box'>", unsafe_allow_html=True
             )
-            st.markdown("##### 📌 Progress Live Status Workflow")
+            st.markdown("##### 📌 Progress Live Status & Timeline Berkas")
             st.markdown("<br>", unsafe_allow_html=True)
             for idx, item in enumerate(st.session_state["db_opb"]):
                 status_curr = item["status"]
@@ -494,6 +512,15 @@ else:
                 st.caption(
                     f"📍 Status: `{status_curr}` | 💰 Est: Rp {item['harga_estimasi']:,}"
                 )
+
+                # --- BAGIAN TIMELINE JEJAK AKTIVITAS BERKAS ---
+                with st.expander(f"📜 Lihat Timeline & Log ({len(item['timeline'])} Aktivitas)"):
+                    if item["timeline"]:
+                        for log_text in item["timeline"]:
+                            st.markdown(f"<div class='timeline-item'>{log_text}</div>", unsafe_allow_html=True)
+                    else:
+                        st.caption("Belum ada riwayat aktivitas.")
+
                 st.markdown(
                     "<hr style='margin:12px 0;'>", unsafe_allow_html=True
                 )
