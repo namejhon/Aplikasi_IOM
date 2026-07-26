@@ -27,7 +27,7 @@ def load_lottieurl(url: str):
         return None
 
 
-# --- 3. ADVANCED CUSTOM CSS (PREMIUM LUXURY DESIGN) ---
+# --- 3. ADVANCED CUSTOM CSS (PREMIUM LUXURY DESIGN & ELEGAN TIMELINE) ---
 st.markdown(
     """
     <style>
@@ -98,15 +98,6 @@ st.markdown(
         margin-top: 4px;
     }
     
-    /* Login Box Container */
-    .login-container {
-        background: white;
-        padding: 35px;
-        border-radius: 20px;
-        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
-        border: 1px solid #e2e8f0;
-    }
-    
     /* User Profile Card SideBar */
     .user-profile-card {
         background: white;
@@ -127,19 +118,15 @@ st.markdown(
         margin-top: 5px;
     }
     
-    /* Notification Alert Box */
+    /* Notification Alert Box Interaktif */
     .notif-box {
         background: linear-gradient(135deg, #fffbe3 0%, #fef3c7 100%);
         border-left: 5px solid #f59e0b;
         color: #78350f;
-        padding: 16px 20px;
-        border-radius: 14px;
+        padding: 18px 22px;
+        border-radius: 16px;
         margin-bottom: 22px;
-        font-weight: 500;
         box-shadow: 0 4px 15px rgba(245, 158, 11, 0.12);
-        display: flex;
-        align-items: center;
-        gap: 12px;
     }
     
     /* Main Content Card Container */
@@ -152,22 +139,61 @@ st.markdown(
         margin-bottom: 20px;
     }
     
-    /* Style Khusus Timeline */
-    .timeline-item {
-        border-left: 3px solid #6366f1;
-        padding-left: 15px;
-        margin-bottom: 12px;
+    /* ================= ELEGAN TIMELINE DESIGN ================= */
+    .timeline-container {
         position: relative;
+        padding-left: 20px;
+        margin: 15px 0 10px 10px;
+        border-left: 2px dashed #cbd5e1;
     }
-    .timeline-item::before {
+    
+    .timeline-card {
+        position: relative;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 12px 16px;
+        margin-bottom: 14px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+        transition: all 0.2s ease;
+    }
+    
+    .timeline-card:hover {
+        background: #ffffff;
+        border-color: #cbd5e1;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+    
+    .timeline-card::before {
         content: '';
         position: absolute;
-        left: -7px;
-        top: 3px;
-        width: 11px;
-        height: 11px;
+        left: -28px;
+        top: 16px;
+        width: 13px;
+        height: 13px;
         border-radius: 50%;
         background-color: #6366f1;
+        border: 3px solid #ffffff;
+        box-shadow: 0 0 0 2px #6366f1;
+    }
+    
+    .timeline-time {
+        display: inline-block;
+        background: #e0e7ff;
+        color: #3730a3;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 12px;
+        margin-bottom: 6px;
+    }
+    
+    .timeline-desc {
+        color: #1e293b;
+        font-size: 13px;
+        font-weight: 500;
+        line-height: 1.4;
+        margin: 0;
     }
     </style>
 """,
@@ -224,7 +250,7 @@ def upload_to_google_drive(file_name, file_bytes, mime_type, folder_id):
 def catat_log(item, pesan):
     wib = pytz.timezone("Asia/Jakarta")
     waktu_sekarang = datetime.now(wib).strftime("%d/%m/%Y %H:%M:%S")
-    item["timeline"].append(f"⏱️ **[{waktu_sekarang}]** - {pesan}")
+    item["timeline"].append({"waktu": waktu_sekarang, "pesan": pesan})
 
 
 # --- 6. FUNGSI CEK NOTIFIKASI PER DIVISI ---
@@ -279,14 +305,15 @@ if "user_info" not in st.session_state:
 if "notif_shown" not in st.session_state:
     st.session_state["notif_shown"] = False
 
-# ==================== HALAMAN LOGIN INTERAKTIF & ANIMASI ====================
+if "target_focus_id" not in st.session_state:
+    st.session_state["target_focus_id"] = None
+
+# ==================== HALAMAN LOGIN INTERAKTIF ====================
 if not st.session_state["logged_in"]:
     col_l1, col_l2, col_l3 = st.columns([1.2, 1.6, 1.2])
 
     with col_l2:
         st.markdown("<br>", unsafe_allow_html=True)
-
-        # Animasi Lottie Interaktif di Halaman Login
         st.markdown(
             """
             <div style="text-align: center; margin-bottom: -20px;">
@@ -343,15 +370,15 @@ if not st.session_state["logged_in"]:
             """)
 
 else:
-    # ==================== APLIKASI UTAMA (SETELAH LOGIN) ====================
+    # ==================== APLIKASI UTAMA ====================
     user_info = st.session_state["user_info"]
     role = user_info["role"]
 
-    # --- POP-UP NOTIFIKASI OTOMATIS (TOAST) ---
+    # --- POP-UP NOTIFIKASI TOAST ---
     pending_tasks = cek_notifikasi_user(role)
     if pending_tasks and not st.session_state["notif_shown"]:
         st.toast(
-            f"🔔 **Pemberitahuan:** Ada {len(pending_tasks)} permintaan barang baru yang butuh tindakan Anda!",
+            f"🔔 **Pemberitahuan:** Ada {len(pending_tasks)} tugas baru menunggu tindakan Anda!",
             icon="📩",
         )
         st.session_state["notif_shown"] = True
@@ -374,11 +401,12 @@ else:
         st.session_state["logged_in"] = False
         st.session_state["user_info"] = None
         st.session_state["notif_shown"] = False
+        st.session_state["target_focus_id"] = None
         st.rerun()
 
     st.sidebar.markdown("---")
 
-    # --- HEADER BANNER UTAMA ---
+    # --- HEADER BANNER ---
     st.markdown(
         f"""
         <div class="main-header">
@@ -389,21 +417,43 @@ else:
         unsafe_allow_html=True,
     )
 
-    # --- BANNER ALERT NOTIFIKASI ---
+    # ================= BANNER NOTIFIKASI INTERAKTIF (BISA DIKLIK KEBAGIAN TUGAS) =================
     if pending_tasks:
         st.markdown(
             f"""
             <div class="notif-box">
-                <span style="font-size:22px;">🔔</span>
-                <div>
-                    <b>Notifikasi Tugas Masuk:</b> Terdapat <b>{len(pending_tasks)} berkas/permintaan barang</b> yang menunggu respon atau persetujuan dari divisi <b>{role}</b>.
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                    <span style="font-size:24px;">🔔</span>
+                    <span style="font-size: 16px; font-weight: 700;">Notifikasi Tugas Masuk ({len(pending_tasks)} Berkas)</span>
+                </div>
+                <div style="font-size: 13px; margin-bottom: 12px; opacity: 0.9;">
+                    Klik tombol di bawah ini untuk langsung menuju dan membuka berkas pekerjaan terkait:
                 </div>
             </div>
         """,
             unsafe_allow_html=True,
         )
 
-    # ==================== EXECUTIVE DASHBOARD VISUAL ====================
+        # Tombol Interaktif Direct-Link ke Tugas
+        btn_cols = st.columns(min(len(pending_tasks), 4))
+        for i, item_task in enumerate(pending_tasks):
+            col_idx = i % 4
+            with btn_cols[col_idx]:
+                if st.button(
+                    f"👉 Kelola: {item_task['nomor_opb']}",
+                    key=f"quick_btn_{item_task['id']}",
+                    type="primary",
+                    use_container_width=True,
+                ):
+                    st.session_state["target_focus_id"] = item_task["id"]
+                    st.toast(
+                        f"🎯 Menuju berkas {item_task['nomor_opb']}", icon="⚡"
+                    )
+                    st.rerun()
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+    # ================= EXECUTIVE DASHBOARD =================
     st.markdown("### 📊 Dashboard Monitoring & Analisis P3SRS")
 
     TAHAPAN_OPB = [
@@ -425,7 +475,6 @@ else:
         total_proses = total_opb - total_selesai
         total_anggaran = df_opb["harga_estimasi"].sum()
 
-        # Custom Designed KPI Metric Cards
         m1, m2, m3, m4 = st.columns(4)
 
         with m1:
@@ -480,7 +529,7 @@ else:
 
         col_dash1, col_dash2 = st.columns([1.3, 1])
 
-        # BARIS DASHBOARD: PROGRESS WORKFLOW & TIMELINE LIVE ACTIVITY
+        # PROGRESS WORKFLOW & ELEGAN TIMELINE DISPLAY
         with col_dash1:
             st.markdown(
                 "<div class='content-box'>", unsafe_allow_html=True
@@ -513,11 +562,34 @@ else:
                     f"📍 Status: `{status_curr}` | 💰 Est: Rp {item['harga_estimasi']:,}"
                 )
 
-                # --- BAGIAN TIMELINE JEJAK AKTIVITAS BERKAS ---
-                with st.expander(f"📜 Lihat Timeline & Log ({len(item['timeline'])} Aktivitas)"):
+                # ================= ELEGAN VISUAL TIMELINE DESIGN =================
+                with st.expander(
+                    f"📜 Timeline & Jejak Berkas ({len(item['timeline'])} Aktivitas)"
+                ):
                     if item["timeline"]:
-                        for log_text in item["timeline"]:
-                            st.markdown(f"<div class='timeline-item'>{log_text}</div>", unsafe_allow_html=True)
+                        st.markdown(
+                            "<div class='timeline-container'>",
+                            unsafe_allow_html=True,
+                        )
+                        for log_entry in item["timeline"]:
+                            # Memeriksa format dict atau string lama
+                            if isinstance(log_entry, dict):
+                                waktu_log = log_entry.get("waktu", "")
+                                pesan_log = log_entry.get("pesan", "")
+                            else:
+                                waktu_log = "Log"
+                                pesan_log = str(log_entry)
+
+                            st.markdown(
+                                f"""
+                                <div class="timeline-card">
+                                    <span class="timeline-time">⏱️ {waktu_log}</span>
+                                    <p class="timeline-desc">{pesan_log}</p>
+                                </div>
+                            """,
+                                unsafe_allow_html=True,
+                            )
+                        st.markdown("</div>", unsafe_allow_html=True)
                     else:
                         st.caption("Belum ada riwayat aktivitas.")
 
@@ -532,11 +604,9 @@ else:
             )
             st.markdown("##### 📈 Distribusi Berkas per Tahapan")
 
-            # --- MEMBUAT GRAPH PLOTLY MODERN ---
             status_counts = df_opb["status"].value_counts().reset_index()
             status_counts.columns = ["Status Tahapan", "Jumlah OPB"]
 
-            # Modern Bar Chart Plotly
             fig = px.bar(
                 status_counts,
                 x="Jumlah OPB",
@@ -591,7 +661,6 @@ else:
             )
             st.subheader("Pengajuan OPB Baru")
 
-            # MENGGUNAKAN clear_on_submit=True AGAR FORM OTOMATIS KOSONG KEMBALI
             with st.form(key="form_opb_engineering", clear_on_submit=True):
                 nomor_opb = st.text_input(
                     "Nomor OPB P3SRS",
@@ -651,11 +720,8 @@ else:
                             )
                             st.session_state["db_opb"].append(data_baru)
                             st.toast(
-                                "🚀 OPB Berhasil diteruskan ke Purchasing! Form telah dikosongkan.",
+                                "🚀 OPB Berhasil diteruskan ke Purchasing!",
                                 icon="✅",
-                            )
-                            st.success(
-                                "✅ OPB Berhasil diajukan! Form otomatis kosong kembali."
                             )
                             st.rerun()
                 else:
@@ -679,8 +745,12 @@ else:
                     "Tidak ada barang yang menunggu verifikasi penerimaan."
                 )
             for item in items:
+                is_expanded = (
+                    st.session_state["target_focus_id"] == item["id"]
+                )
                 with st.expander(
-                    f"📦 {item['nomor_opb']} - {item['nama_barang']}"
+                    f"📦 {item['nomor_opb']} - {item['nama_barang']}",
+                    expanded=is_expanded,
                 ):
                     st.write(f"**Jumlah:** {item['jumlah']}")
                     st.write(f"**Vendor:** {item['vendor']}")
@@ -694,6 +764,7 @@ else:
                             item,
                             "Barang telah diterima oleh Engineering. Workflow SELESAI.",
                         )
+                        st.session_state["target_focus_id"] = None
                         st.toast(
                             "✅ Barang Diterima! Status OPB Selesai.", icon="🎉"
                         )
@@ -724,8 +795,12 @@ else:
             if not items:
                 st.info("Tidak ada tugas penawaran barang saat ini.")
             for item in items:
+                is_expanded = (
+                    st.session_state["target_focus_id"] == item["id"]
+                )
                 with st.expander(
-                    f"📌 {item['nomor_opb']} - {item['nama_barang']}"
+                    f"📌 {item['nomor_opb']} - {item['nama_barang']}",
+                    expanded=is_expanded,
                 ):
                     st.write(f"**Spesifikasi/Kebutuhan:** {item['keterangan']}")
                     st.write(f"**Berkas OPB:** `{item['link_opb']}`")
@@ -756,6 +831,7 @@ else:
                             item,
                             f"Purchasing menentukan vendor ({vendor}) & estimasi harga (Rp {harga:,}). Dikirim ke BM.",
                         )
+                        st.session_state["target_focus_id"] = None
                         st.toast("📩 Berhasil dikirim ke BM!", icon="✅")
                         st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
@@ -778,8 +854,12 @@ else:
             if not items:
                 st.info("Tidak ada IOM yang perlu dibuat/direvisi.")
             for item in items:
+                is_expanded = (
+                    st.session_state["target_focus_id"] == item["id"]
+                )
                 with st.expander(
-                    f"📑 {item['nomor_opb']} - {item['nama_barang']}"
+                    f"📑 {item['nomor_opb']} - {item['nama_barang']}",
+                    expanded=is_expanded,
                 ):
                     st.write(
                         f"**Vendor Pilihan:** {item['vendor']} | **Estimasi Harga:** Rp {item['harga_estimasi']:,}"
@@ -807,6 +887,7 @@ else:
                                 item,
                                 "Purchasing mengunggah draft IOM dan meneruskan ke Finance.",
                             )
+                            st.session_state["target_focus_id"] = None
                             st.toast(
                                 "📩 Draft IOM Dikirim ke Finance!", icon="✅"
                             )
@@ -826,8 +907,12 @@ else:
             if not items:
                 st.info("Belum ada barang yang perlu dibeli saat ini.")
             for item in items:
+                is_expanded = (
+                    st.session_state["target_focus_id"] == item["id"]
+                )
                 with st.expander(
-                    f"💳 {item['nomor_opb']} - {item['nama_barang']}"
+                    f"💳 {item['nomor_opb']} - {item['nama_barang']}",
+                    expanded=is_expanded,
                 ):
                     st.write(
                         f"**Vendor:** {item['vendor']} | **Budget Approved:** Rp {item['harga_estimasi']:,}"
@@ -842,6 +927,7 @@ else:
                         catat_log(
                             item, "Purchasing melakukan eksekusi pembelian barang."
                         )
+                        st.session_state["target_focus_id"] = None
                         st.toast(
                             "📦 Barang dibeli & dikirim ke Engineering!",
                             icon="🚚",
@@ -868,8 +954,12 @@ else:
             if not items:
                 st.info("Tidak ada OPB baru menunggu persetujuan.")
             for item in items:
+                is_expanded = (
+                    st.session_state["target_focus_id"] == item["id"]
+                )
                 with st.expander(
-                    f"🧐 Review OPB: {item['nomor_opb']} - {item['nama_barang']}"
+                    f"🧐 Review OPB: {item['nomor_opb']} - {item['nama_barang']}",
+                    expanded=is_expanded,
                 ):
                     st.write(f"**Vendor:** {item['vendor']}")
                     st.write(
@@ -893,6 +983,7 @@ else:
                                 item,
                                 "BM menyetujui OPB. Meneruskan ke Purchasing untuk buat IOM.",
                             )
+                            st.session_state["target_focus_id"] = None
                             st.toast("✅ OPB Disetujui!", icon="👍")
                             st.rerun()
                     with col2:
@@ -904,6 +995,7 @@ else:
                             catat_log(
                                 item, f"BM meminta revisi OPB: {catatan}"
                             )
+                            st.session_state["target_focus_id"] = None
                             st.toast(
                                 "⚠️ Diminta Revisi ke Purchasing", icon="🔄"
                             )
@@ -922,8 +1014,12 @@ else:
             if not items:
                 st.info("Tidak ada IOM menunggu persetujuan final.")
             for item in items:
+                is_expanded = (
+                    st.session_state["target_focus_id"] == item["id"]
+                )
                 with st.expander(
-                    f"📑 Approval IOM: {item['nomor_opb']} - {item['nama_barang']}"
+                    f"📑 Approval IOM: {item['nomor_opb']} - {item['nama_barang']}",
+                    expanded=is_expanded,
                 ):
                     st.write(
                         f"**Vendor:** {item['vendor']} | **Total Budget:** Rp {item['harga_estimasi']:,}"
@@ -935,6 +1031,7 @@ else:
                         type="primary",
                     ):
                         catat_log(item, "BM menyetujui IOM Final.")
+                        st.session_state["target_focus_id"] = None
                         st.toast("✅ Persetujuan BM dicatat!", icon="👍")
             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -952,8 +1049,10 @@ else:
                 "Tidak ada IOM yang membutuhkan verifikasi Finance saat ini."
             )
         for item in items:
+            is_expanded = st.session_state["target_focus_id"] == item["id"]
             with st.expander(
-                f"💵 Review IOM: {item['nomor_opb']} - {item['nama_barang']}"
+                f"💵 Review IOM: {item['nomor_opb']} - {item['nama_barang']}",
+                expanded=is_expanded,
             ):
                 st.write(f"**Vendor:** {item['vendor']}")
                 st.write(f"**Pengajuan Dana:** Rp {item['harga_estimasi']:,}")
@@ -974,6 +1073,7 @@ else:
                             item,
                             "Finance memverifikasi ketersediaan budget IOM.",
                         )
+                        st.session_state["target_focus_id"] = None
                         st.toast("💰 Budget Disetujui!", icon="✅")
                         st.rerun()
                 with col2:
@@ -985,6 +1085,7 @@ else:
                         catat_log(
                             item, f"Finance meminta revisi budget: {catatan}"
                         )
+                        st.session_state["target_focus_id"] = None
                         st.toast("⚠️ Permintaan Revisi dikirim!", icon="🔄")
                         st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
@@ -1001,8 +1102,10 @@ else:
         if not items:
             st.info("Tidak ada IOM yang menunggu persetujuan P3SRS.")
         for item in items:
+            is_expanded = st.session_state["target_focus_id"] == item["id"]
             with st.expander(
-                f"⚖️ Persetujuan Final: {item['nomor_opb']} - {item['nama_barang']}"
+                f"⚖️ Persetujuan Final: {item['nomor_opb']} - {item['nama_barang']}",
+                expanded=is_expanded,
             ):
                 st.write(f"**Vendor:** {item['vendor']}")
                 st.write(
@@ -1025,6 +1128,7 @@ else:
                             item,
                             "P3SRS menyetujui IOM Final. Memerintahkan Purchasing melakukan pembelian.",
                         )
+                        st.session_state["target_focus_id"] = None
                         st.toast("🎉 IOM Disetujui P3SRS!", icon="✅")
                         st.rerun()
                 with col2:
@@ -1037,6 +1141,7 @@ else:
                             item,
                             f"P3SRS menolak/meminta revisi IOM: {catatan}",
                         )
+                        st.session_state["target_focus_id"] = None
                         st.toast(
                             "⚠️ Revisi Dikirim ke Purchasing!", icon="🔄"
                         )
