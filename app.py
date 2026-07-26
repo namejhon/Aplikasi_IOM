@@ -1,4 +1,5 @@
 from datetime import datetime
+import json
 import os
 import pandas as pd
 import plotly.express as px
@@ -15,8 +16,32 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# --- 2. DATABASE LOKAL TERPUSAT (JSON STORAGE UNTUK MULTI-DEVICE SYNC) ---
+DB_FILE = "db_opb.json"
 
-# --- 2. FUNGSI LOAD LOTTIE ANIMATION ---
+
+def load_db():
+    """Membaca data OPB dari file JSON agar tersinkronisasi antar-device."""
+    if os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return []
+    return []
+
+
+def save_db(data):
+    """Menyimpan data OPB ke file JSON setiap ada perubahan data/status."""
+    with open(DB_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
+
+
+# Sync otomatis session_state dari database JSON setiap kali halaman di-refresh/interaksi
+st.session_state["db_opb"] = load_db()
+
+
+# --- 3. FUNGSI LOAD LOTTIE ANIMATION ---
 def load_lottieurl(url: str):
     try:
         r = requests.get(url, timeout=5)
@@ -27,7 +52,7 @@ def load_lottieurl(url: str):
         return None
 
 
-# --- 3. ADVANCED CUSTOM CSS (PREMIUM LUXURY DESIGN & ELEGAN TIMELINE) ---
+# --- 4. ADVANCED CUSTOM CSS (PREMIUM LUXURY DESIGN & ELEGAN TIMELINE) ---
 st.markdown(
     """
     <style>
@@ -200,7 +225,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- 4. DATABASE USER & PASSWORD (MULTI-ROLE) ---
+# --- 5. DATABASE USER & PASSWORD (MULTI-ROLE) ---
 USERS = {
     "engineering": {
         "password": "eng123",
@@ -230,7 +255,7 @@ USERS = {
 }
 
 
-# --- 5. FUNGSI SIMPAN FILE LOKAL ---
+# --- 6. FUNGSI SIMPAN FILE LOKAL & CATAT LOG ---
 def upload_to_google_drive(file_name, file_bytes, mime_type, folder_id):
     try:
         upload_dir = os.path.join(os.getcwd(), "uploads")
@@ -253,7 +278,7 @@ def catat_log(item, pesan):
     item["timeline"].append({"waktu": waktu_sekarang, "pesan": pesan})
 
 
-# --- 6. FUNGSI CEK NOTIFIKASI PER DIVISI ---
+# --- 7. FUNGSI CEK NOTIFIKASI PER DIVISI ---
 def cek_notifikasi_user(role):
     db = st.session_state["db_opb"]
     pending_items = []
@@ -293,10 +318,7 @@ def cek_notifikasi_user(role):
     return pending_items
 
 
-# --- 7. INITIALIZATION SESSION STATE ---
-if "db_opb" not in st.session_state:
-    st.session_state["db_opb"] = []
-
+# --- 8. INITIALIZATION SESSION STATE ---
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 if "user_info" not in st.session_state:
@@ -397,6 +419,12 @@ else:
     if pending_tasks:
         st.sidebar.warning(f"🔔 **{len(pending_tasks)} Tugas Menunggu**")
 
+    # Tombol Refresh Data Manual
+    if st.sidebar.button("🔄 Refresh Data (Sync)", use_container_width=True):
+        st.session_state["db_opb"] = load_db()
+        st.toast("🔄 Data berhasil disinkronkan!", icon="⚡")
+        st.rerun()
+
     if st.sidebar.button("🚪 Keluar / Logout", use_container_width=True):
         st.session_state["logged_in"] = False
         st.session_state["user_info"] = None
@@ -417,7 +445,7 @@ else:
         unsafe_allow_html=True,
     )
 
-    # ================= BANNER NOTIFIKASI INTERAKTIF (BISA DIKLIK KEBAGIAN TUGAS) =================
+    # ================= BANNER NOTIFIKASI INTERAKTIF =================
     if pending_tasks:
         st.markdown(
             f"""
@@ -434,7 +462,6 @@ else:
             unsafe_allow_html=True,
         )
 
-        # Tombol Interaktif Direct-Link ke Tugas
         btn_cols = st.columns(min(len(pending_tasks), 4))
         for i, item_task in enumerate(pending_tasks):
             col_idx = i % 4
@@ -529,11 +556,9 @@ else:
 
         col_dash1, col_dash2 = st.columns([1.3, 1])
 
-        # PROGRESS WORKFLOW & ELEGAN TIMELINE DISPLAY
+        # PROGRESS WORKFLOW & TIMELINE DISPLAY
         with col_dash1:
-            st.markdown(
-                "<div class='content-box'>", unsafe_allow_html=True
-            )
+            st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.markdown("##### 📌 Progress Live Status & Timeline Berkas")
             st.markdown("<br>", unsafe_allow_html=True)
             for idx, item in enumerate(st.session_state["db_opb"]):
@@ -562,7 +587,6 @@ else:
                     f"📍 Status: `{status_curr}` | 💰 Est: Rp {item['harga_estimasi']:,}"
                 )
 
-                # ================= ELEGAN VISUAL TIMELINE DESIGN =================
                 with st.expander(
                     f"📜 Timeline & Jejak Berkas ({len(item['timeline'])} Aktivitas)"
                 ):
@@ -572,7 +596,6 @@ else:
                             unsafe_allow_html=True,
                         )
                         for log_entry in item["timeline"]:
-                            # Memeriksa format dict atau string lama
                             if isinstance(log_entry, dict):
                                 waktu_log = log_entry.get("waktu", "")
                                 pesan_log = log_entry.get("pesan", "")
@@ -599,9 +622,7 @@ else:
             st.markdown("</div>", unsafe_allow_html=True)
 
         with col_dash2:
-            st.markdown(
-                "<div class='content-box'>", unsafe_allow_html=True
-            )
+            st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.markdown("##### 📈 Distribusi Berkas per Tahapan")
 
             status_counts = df_opb["status"].value_counts().reset_index()
@@ -656,9 +677,7 @@ else:
         )
 
         with tab1:
-            st.markdown(
-                "<div class='content-box'>", unsafe_allow_html=True
-            )
+            st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.subheader("Pengajuan OPB Baru")
 
             with st.form(key="form_opb_engineering", clear_on_submit=True):
@@ -719,6 +738,7 @@ else:
                                 "OPB Dibuat & Diajukan oleh Engineering ke Purchasing",
                             )
                             st.session_state["db_opb"].append(data_baru)
+                            save_db(st.session_state["db_opb"])  # SIMPAN KE JSON
                             st.toast(
                                 "🚀 OPB Berhasil diteruskan ke Purchasing!",
                                 icon="✅",
@@ -731,9 +751,7 @@ else:
             st.markdown("</div>", unsafe_allow_html=True)
 
         with tab2:
-            st.markdown(
-                "<div class='content-box'>", unsafe_allow_html=True
-            )
+            st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.subheader("Barang Siap Diterima di Lapangan")
             items = [
                 x
@@ -764,6 +782,7 @@ else:
                             item,
                             "Barang telah diterima oleh Engineering. Workflow SELESAI.",
                         )
+                        save_db(st.session_state["db_opb"])  # SIMPAN KE JSON
                         st.session_state["target_focus_id"] = None
                         st.toast(
                             "✅ Barang Diterima! Status OPB Selesai.", icon="🎉"
@@ -783,9 +802,7 @@ else:
         )
 
         with tab1:
-            st.markdown(
-                "<div class='content-box'>", unsafe_allow_html=True
-            )
+            st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.subheader("OPB Masuk (Perlu Penawaran & Harga Vendor)")
             items = [
                 x
@@ -831,15 +848,14 @@ else:
                             item,
                             f"Purchasing menentukan vendor ({vendor}) & estimasi harga (Rp {harga:,}). Dikirim ke BM.",
                         )
+                        save_db(st.session_state["db_opb"])  # SIMPAN KE JSON
                         st.session_state["target_focus_id"] = None
                         st.toast("📩 Berhasil dikirim ke BM!", icon="✅")
                         st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
 
         with tab2:
-            st.markdown(
-                "<div class='content-box'>", unsafe_allow_html=True
-            )
+            st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.subheader("OPB Disetujui BM -> Buat & Upload IOM")
             items = [
                 x
@@ -887,6 +903,9 @@ else:
                                 item,
                                 "Purchasing mengunggah draft IOM dan meneruskan ke Finance.",
                             )
+                            save_db(
+                                st.session_state["db_opb"]
+                            )  # SIMPAN KE JSON
                             st.session_state["target_focus_id"] = None
                             st.toast(
                                 "📩 Draft IOM Dikirim ke Finance!", icon="✅"
@@ -895,9 +914,7 @@ else:
             st.markdown("</div>", unsafe_allow_html=True)
 
         with tab3:
-            st.markdown(
-                "<div class='content-box'>", unsafe_allow_html=True
-            )
+            st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.subheader("IOM Fully Approved -> Eksekusi Pembelian")
             items = [
                 x
@@ -925,8 +942,10 @@ else:
                     ):
                         item["status"] = "7. Penerimaan Barang (Engineering)"
                         catat_log(
-                            item, "Purchasing melakukan eksekusi pembelian barang."
+                            item,
+                            "Purchasing melakukan eksekusi pembelian barang.",
                         )
+                        save_db(st.session_state["db_opb"])  # SIMPAN KE JSON
                         st.session_state["target_focus_id"] = None
                         st.toast(
                             "📦 Barang dibeli & dikirim ke Engineering!",
@@ -943,9 +962,7 @@ else:
         )
 
         with tab1:
-            st.markdown(
-                "<div class='content-box'>", unsafe_allow_html=True
-            )
+            st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             items = [
                 x
                 for x in st.session_state["db_opb"]
@@ -983,6 +1000,9 @@ else:
                                 item,
                                 "BM menyetujui OPB. Meneruskan ke Purchasing untuk buat IOM.",
                             )
+                            save_db(
+                                st.session_state["db_opb"]
+                            )  # SIMPAN KE JSON
                             st.session_state["target_focus_id"] = None
                             st.toast("✅ OPB Disetujui!", icon="👍")
                             st.rerun()
@@ -995,6 +1015,9 @@ else:
                             catat_log(
                                 item, f"BM meminta revisi OPB: {catatan}"
                             )
+                            save_db(
+                                st.session_state["db_opb"]
+                            )  # SIMPAN KE JSON
                             st.session_state["target_focus_id"] = None
                             st.toast(
                                 "⚠️ Diminta Revisi ke Purchasing", icon="🔄"
@@ -1003,9 +1026,7 @@ else:
             st.markdown("</div>", unsafe_allow_html=True)
 
         with tab2:
-            st.markdown(
-                "<div class='content-box'>", unsafe_allow_html=True
-            )
+            st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             items = [
                 x
                 for x in st.session_state["db_opb"]
@@ -1031,8 +1052,10 @@ else:
                         type="primary",
                     ):
                         catat_log(item, "BM menyetujui IOM Final.")
+                        save_db(st.session_state["db_opb"])  # SIMPAN KE JSON
                         st.session_state["target_focus_id"] = None
                         st.toast("✅ Persetujuan BM dicatat!", icon="👍")
+                        st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
 
     # 4. ROLE FINANCE
@@ -1073,6 +1096,7 @@ else:
                             item,
                             "Finance memverifikasi ketersediaan budget IOM.",
                         )
+                        save_db(st.session_state["db_opb"])  # SIMPAN KE JSON
                         st.session_state["target_focus_id"] = None
                         st.toast("💰 Budget Disetujui!", icon="✅")
                         st.rerun()
@@ -1085,6 +1109,7 @@ else:
                         catat_log(
                             item, f"Finance meminta revisi budget: {catatan}"
                         )
+                        save_db(st.session_state["db_opb"])  # SIMPAN KE JSON
                         st.session_state["target_focus_id"] = None
                         st.toast("⚠️ Permintaan Revisi dikirim!", icon="🔄")
                         st.rerun()
@@ -1128,6 +1153,7 @@ else:
                             item,
                             "P3SRS menyetujui IOM Final. Memerintahkan Purchasing melakukan pembelian.",
                         )
+                        save_db(st.session_state["db_opb"])  # SIMPAN KE JSON
                         st.session_state["target_focus_id"] = None
                         st.toast("🎉 IOM Disetujui P3SRS!", icon="✅")
                         st.rerun()
@@ -1141,6 +1167,7 @@ else:
                             item,
                             f"P3SRS menolak/meminta revisi IOM: {catatan}",
                         )
+                        save_db(st.session_state["db_opb"])  # SIMPAN KE JSON
                         st.session_state["target_focus_id"] = None
                         st.toast(
                             "⚠️ Revisi Dikirim ke Purchasing!", icon="🔄"
