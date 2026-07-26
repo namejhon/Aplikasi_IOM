@@ -177,7 +177,7 @@ def upload_to_google_drive(file_name, file_bytes, mime_type, folder_id):
         return None
 
 def catat_log(item, pesan):
-    wib = pytz.timezone('Asia/Jakarta)
+    wib = pytz.timezone('Asia/Jakarta')
     waktu_sekarang = datetime.now(wib).strftime("%d/%m/%Y %H:%M:%S")
     item['timeline'].append(f"⏱️ **[{waktu_sekarang}]** - {pesan}")
 
