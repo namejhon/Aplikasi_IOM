@@ -359,6 +359,31 @@ elif current_tab == "📋 Panel Tugas Saya":
                 st.markdown(f"### 📄 {item['nomor_opb']} — {item['nama_barang']}")
                 st.caption(f"Status Saat Ini: **{item['status']}** | Estimasi: **{format_rupiah(item['harga_estimasi'])}** | Vendor: **{item['vendor']}**")
                 
+                # Download File Section untuk Peran Non-Engineering
+                if user['role'] != 'Engineering':
+                    st.caption("📥 Unduh Berkas Lampiran:")
+                    dcol1, dcol2 = st.columns(2)
+                    with dcol1:
+                        st.download_button(
+                            label=f"📄 Download File OPB ({item['link_opb']})",
+                            data=f"RESUME DOKUMEN OPB\nNomor: {item['nomor_opb']}\nBarang: {item['nama_barang']}\nJumlah: {item['jumlah']}\nEstimasi: {format_rupiah(item['harga_estimasi'])}\nVendor: {item['vendor']}\nStatus: {item['status']}".encode('utf-8'),
+                            file_name=item['link_opb'],
+                            mime="text/plain",
+                            key=f"task_dl_opb_{item['id']}"
+                        )
+                    with dcol2:
+                        if item['link_iom'] != "-":
+                            st.download_button(
+                                label=f"📄 Download File IOM ({item['link_iom']})",
+                                data=f"RESUME DOKUMEN IOM\nNomor OPB: {item['nomor_opb']}\nStatus: {item['status']}\nDisetujui untuk Pembelian.".encode('utf-8'),
+                                file_name=item['link_iom'],
+                                mime="text/plain",
+                                key=f"task_dl_iom_{item['id']}"
+                            )
+                        else:
+                            st.info("File IOM belum diunggah")
+                    st.divider()
+
                 # Purchasing Action Forms
                 if user['role'] == 'Purchasing':
                     if item['status'] in ['1. Penawaran Purchasing', 'Revisi BM (OPB)']:
