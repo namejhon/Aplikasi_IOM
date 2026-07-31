@@ -22,7 +22,7 @@ st.set_page_config(
 # --- 2. KONFIGURASI SUPABASE ---
 # Mengambil kredensial dari Streamlit Secrets atau Environment Variable
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", os.getenv("SUPABASE_URL", "https://ffdkbwwppkmipiwaxiad.supabase.co"))
-SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", os.getenv("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."))
+SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", os.getenv("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZmZGtid3dwcGttaXBpd2F4aWFkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0ODc5NTIsImV4cCI6MjEwMTA2Mzk1Mn0.92l2a2QqYhq7Ej0fICSUGemsk2U_akr3vZWYDHoaegg"))
 
 
 @st.cache_resource
