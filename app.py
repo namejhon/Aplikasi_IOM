@@ -9,6 +9,7 @@ import pytz
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
+from supabase import create_client
 
 # --- 1. KONFIGURASI HALAMAN ---
 st.set_page_config(
@@ -18,71 +19,97 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-DB_FILE = "db_opb.json"
+# --- 2. KONFIGURASI SUPABASE (Ganti dengan kredensial Supabase kamu) ---
+# Kamu bisa menyimpan kredensial ini di .streamlit/secrets.toml atau langsung di bawah ini
+SUPABASE_URL = st.secrets.get(
+    "SUPABASE_URL", "https://xxxxxxxxxxxxxx.supabase.co"
+)
+SUPABASE_KEY = st.secrets.get(
+    "SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+)
 
 
-# --- 2. FUNGSI PERSISTENSI DATA (JSON STORAGE) ---
+@st.cache_resource
+def init_supabase():
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
+
+
+try:
+    supabase = init_supabase()
+except Exception as e:
+    st.error(
+        f"Gagal terhubung ke Supabase. Pastikan URL dan Key sudah benar. Error: {e}"
+    )
+
+
+# --- 3. FUNGSI PERSISTENSI DATA (SUPABASE CLOUD DATABASE) ---
 def load_database():
-    """Membaca database dari file JSON agar data tidak hilang saat refresh."""
-    if os.path.exists(DB_FILE):
-        try:
-            with open(DB_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                # Decode bytes jika sebelumnya disimpan dalam format base64
-                for item in data:
-                    if item.get("file_opb_b64"):
-                        item["file_opb_bytes"] = base64.b64decode(
-                            item["file_opb_b64"]
-                        )
-                    if item.get("file_iom_b64"):
-                        item["file_iom_bytes"] = base64.b64decode(
-                            item["file_iom_b64"]
-                        )
-                    if item.get("file_bast_b64"):
-                        item["file_bast_bytes"] = base64.b64decode(
-                            item["file_bast_b64"]
-                        )
-                return data
-        except Exception as e:
-            st.error(f"Gagal memuat database JSON: {e}")
-            return []
-    return []
-
-
-def save_database(data):
-    """Menyimpan database session state ke file JSON lokal."""
+    """Membaca data dari Cloud Supabase agar sinkron di semua device."""
     try:
-        # Buat copy data agar tidak merusak objek memori Streamlit saat encode b64
-        data_to_save = []
+        response = supabase.table("opb_data").select("*").execute()
+        data = response.data if response.data else []
+
         for item in data:
-            item_copy = item.copy()
+            # Decode file base64 ke bytes agar bisa diunduh
+            if item.get("file_opb_b64"):
+                item["file_opb_bytes"] = base64.b64decode(item["file_opb_b64"])
+            if item.get("file_iom_b64"):
+                item["file_iom_bytes"] = base64.b64decode(item["file_iom_b64"])
+            if item.get("file_bast_b64"):
+                item["file_bast_bytes"] = base64.b64decode(
+                    item["file_bast_b64"]
+                )
 
-            # Encode byte stream (PDF/File) ke string base64 agar aman disimpan di JSON
-            if item_copy.get("file_opb_bytes"):
-                item_copy["file_opb_b64"] = base64.b64encode(
-                    item_copy["file_opb_bytes"]
-                ).decode("utf-8")
-                del item_copy["file_opb_bytes"]
-            if item_copy.get("file_iom_bytes"):
-                item_copy["file_iom_b64"] = base64.b64encode(
-                    item_copy["file_iom_bytes"]
-                ).decode("utf-8")
-                del item_copy["file_iom_bytes"]
-            if item_copy.get("file_bast_bytes"):
-                item_copy["file_bast_b64"] = base64.b64encode(
-                    item_copy["file_bast_bytes"]
-                ).decode("utf-8")
-                del item_copy["file_bast_bytes"]
+            # Pencegahan KeyError (Safe Default)
+            item["catatan_bm"] = item.get("catatan_bm") or "-"
+            item["catatan_finance"] = item.get("catatan_finance") or "-"
+            item["catatan_p3srs"] = item.get("catatan_p3srs") or "-"
+            item["vendor"] = item.get("vendor") or "-"
+            item["harga_estimasi"] = item.get("harga_estimasi") or 0
+            item["timeline"] = item.get("timeline") or []
 
-            data_to_save.append(item_copy)
-
-        with open(DB_FILE, "w", encoding="utf-8") as f:
-            json.dump(data_to_save, f, indent=4, ensure_ascii=False)
+        return sorted(data, key=lambda x: x.get("id", 0))
     except Exception as e:
-        st.error(f"Gagal menyimpan ke database JSON: {e}")
+        st.error(f"Gagal mengambil data dari Supabase: {e}")
+        return []
 
 
-# --- 3. CUSTOM CSS & ANIMATED TIMELINE ---
+def save_single_item(item):
+    """Menyimpan atau memperbarui 1 data ke Supabase (Sinkron Real-time)."""
+    try:
+        item_copy = item.copy()
+
+        # Konversi bytes ke base64 string agar bisa disimpan di Cloud JSON
+        if item_copy.get("file_opb_bytes"):
+            item_copy["file_opb_b64"] = base64.b64encode(
+                item_copy["file_opb_bytes"]
+            ).decode("utf-8")
+            del item_copy["file_opb_bytes"]
+
+        if item_copy.get("file_iom_bytes"):
+            item_copy["file_iom_b64"] = base64.b64encode(
+                item_copy["file_iom_bytes"]
+            ).decode("utf-8")
+            del item_copy["file_iom_bytes"]
+
+        if item_copy.get("file_bast_bytes"):
+            item_copy["file_bast_b64"] = base64.b64encode(
+                item_copy["file_bast_bytes"]
+            ).decode("utf-8")
+            del item_copy["file_bast_bytes"]
+
+        # Pastikan tidak ada KeyError saat menyimpan
+        item_copy["catatan_bm"] = item_copy.get("catatan_bm", "-")
+        item_copy["catatan_finance"] = item_copy.get("catatan_finance", "-")
+        item_copy["catatan_p3srs"] = item_copy.get("catatan_p3srs", "-")
+
+        # Upsert (Insert jika baru, Update jika ID sudah ada)
+        supabase.table("opb_data").upsert(item_copy).execute()
+    except Exception as e:
+        st.error(f"Gagal menyimpan ke Supabase: {e}")
+
+
+# --- 4. CUSTOM CSS & ANIMATED TIMELINE ---
 st.markdown(
     """
     <style>
@@ -170,7 +197,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- 4. DATABASE USER & PASSWORD ---
+# --- 5. DATABASE USER & PASSWORD ---
 USERS = {
     "engineering": {
         "password": "eng123",
@@ -200,7 +227,7 @@ USERS = {
 }
 
 
-# --- 5. FUNGSI LOG DAN TANDA TANGAN DIGITAL ---
+# --- 6. FUNGSI LOG DAN TANDA TANGAN DIGITAL ---
 def generate_digital_signature(user_role, user_name, doc_id):
     wib = pytz.timezone("Asia/Jakarta")
     waktu = datetime.now(wib).strftime("%Y-%m-%d %H:%M:%S")
@@ -220,6 +247,8 @@ def catat_log(item, pesan, digital_sig=None):
     log_entry = {"waktu": waktu_sekarang, "pesan": pesan}
     if digital_sig:
         log_entry["signature"] = digital_sig
+    if "timeline" not in item or not isinstance(item["timeline"], list):
+        item["timeline"] = []
     item["timeline"].append(log_entry)
 
 
@@ -228,7 +257,7 @@ def render_download_buttons(item, key_prefix="dl"):
     with col1:
         if item.get("file_opb_bytes"):
             st.download_button(
-                label=f"📥 Download File OPB ({item.get('file_opb_name', 'OPB.pdf')})",
+                label=f"📥 Download OPB ({item.get('file_opb_name', 'OPB.pdf')})",
                 data=item["file_opb_bytes"],
                 file_name=item.get("file_opb_name", "OPB_Dokumen.pdf"),
                 mime="application/octet-stream",
@@ -236,11 +265,11 @@ def render_download_buttons(item, key_prefix="dl"):
                 use_container_width=True,
             )
         else:
-            resume_text = f"RESUME DOKUMEN OPB\nNomor: {item['nomor_opb']}\nNama Barang: {item['nama_barang']}\nJumlah: {item['jumlah']}\nKeterangan: {item['keterangan']}"
+            resume_text = f"RESUME DOKUMEN OPB\nNomor: {item.get('nomor_opb', '')}\nNama Barang: {item.get('nama_barang', '')}\nJumlah: {item.get('jumlah', 1)}\nKeterangan: {item.get('keterangan', '')}"
             st.download_button(
-                label=f"📄 Draft OPB ({item['nomor_opb'].replace('/', '_')}.txt)",
+                label=f"📄 Draft OPB ({str(item.get('nomor_opb', '')).replace('/', '_')}.txt)",
                 data=resume_text.encode("utf-8"),
-                file_name=f"{item['nomor_opb'].replace('/', '_')}.txt",
+                file_name=f"{str(item.get('nomor_opb', '')).replace('/', '_')}.txt",
                 mime="text/plain",
                 key=f"{key_prefix}_opb_txt_{item['id']}",
                 use_container_width=True,
@@ -249,7 +278,7 @@ def render_download_buttons(item, key_prefix="dl"):
     with col2:
         if item.get("file_iom_bytes"):
             st.download_button(
-                label=f"📥 Download File IOM ({item.get('file_iom_name', 'IOM.pdf')})",
+                label=f"📥 Download IOM ({item.get('file_iom_name', 'IOM.pdf')})",
                 data=item["file_iom_bytes"],
                 file_name=item.get("file_iom_name", "IOM_Dokumen.pdf"),
                 mime="application/octet-stream",
@@ -318,14 +347,14 @@ def render_signature_pad(key_id):
 
 
 def cek_notifikasi_user(role):
-    db = st.session_state["db_opb"]
+    db = st.session_state.get("db_opb", [])
     pending_items = []
 
     if role == "Purchasing":
         pending_items = [
             x
             for x in db
-            if x["status"]
+            if x.get("status")
             in [
                 "1. Penawaran Purchasing",
                 "3. Pembuatan IOM (Purchasing)",
@@ -339,28 +368,29 @@ def cek_notifikasi_user(role):
         pending_items = [
             x
             for x in db
-            if x["status"]
+            if x.get("status")
             in ["2. Review BM", "5. Approval Akhir (BM & P3SRS)"]
         ]
     elif role == "Finance":
-        pending_items = [x for x in db if x["status"] == "4. Review Finance"]
+        pending_items = [x for x in db if x.get("status") == "4. Review Finance"]
     elif role == "P3SRS":
         pending_items = [
-            x for x in db if x["status"] == "5. Approval Akhir (BM & P3SRS)"
+            x for x in db if x.get("status") == "5. Approval Akhir (BM & P3SRS)"
         ]
     elif role == "Engineering":
         pending_items = [
             x
             for x in db
-            if x["status"] == "7. Verifikasi Penerimaan Barang (Engineering)"
+            if x.get("status")
+            == "7. Verifikasi Penerimaan Barang (Engineering)"
         ]
 
     return pending_items
 
 
-# --- 6. INITIALIZATION SESSION STATE BERBASIS JSON ---
-if "db_opb" not in st.session_state:
-    st.session_state["db_opb"] = load_database()  # Load otomatis dari JSON
+# --- 7. INITIALIZATION SESSION STATE BERBASIS SUPABASE CLOUD ---
+# Membaca data terbaru langsung dari Cloud Supabase setiap kali render
+st.session_state["db_opb"] = load_database()
 
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
@@ -496,14 +526,15 @@ else:
             col_idx = i % 4
             with btn_cols[col_idx]:
                 if st.button(
-                    f"👉 Kelola: {item_task['nomor_opb']}",
+                    f"👉 Kelola: {item_task.get('nomor_opb', '')}",
                     key=f"quick_btn_{item_task['id']}",
                     type="primary",
                     use_container_width=True,
                 ):
                     st.session_state["target_focus_id"] = item_task["id"]
                     st.toast(
-                        f"🎯 Menuju berkas {item_task['nomor_opb']}", icon="⚡"
+                        f"🎯 Menuju berkas {item_task.get('nomor_opb', '')}",
+                        icon="⚡",
                     )
                     st.rerun()
 
@@ -527,9 +558,15 @@ else:
 
     if total_opb > 0:
         df_opb = pd.DataFrame(st.session_state["db_opb"])
-        total_selesai = len(df_opb[df_opb["status"] == "8. Selesai"])
+        total_selesai = len(
+            df_opb[df_opb.get("status", pd.Series()) == "8. Selesai"]
+        )
         total_proses = total_opb - total_selesai
-        total_anggaran = df_opb["harga_estimasi"].sum()
+        total_anggaran = (
+            df_opb["harga_estimasi"].sum()
+            if "harga_estimasi" in df_opb.columns
+            else 0
+        )
 
         m1, m2, m3, m4 = st.columns(4)
 
@@ -594,7 +631,7 @@ else:
             )
             st.markdown("<br>", unsafe_allow_html=True)
             for idx, item in enumerate(st.session_state["db_opb"]):
-                status_curr = item["status"]
+                status_curr = item.get("status", "Draft")
 
                 if "Revisi" in status_curr:
                     prog_pct = 25
@@ -608,7 +645,7 @@ else:
                     status_badge = "Draft"
 
                 st.markdown(
-                    f"**{item['nomor_opb']}** — {item['nama_barang']} (`{item['vendor']}`)"
+                    f"**{item.get('nomor_opb', '')}** — {item.get('nama_barang', '')} (`{item.get('vendor', '-')}`)"
                 )
                 c_a, c_b = st.columns([4, 1])
                 with c_a:
@@ -616,21 +653,22 @@ else:
                 with c_b:
                     st.caption(f"**{prog_pct}%** ({status_badge})")
                 st.caption(
-                    f"📍 Status: `{status_curr}` | 💰 Est: Rp {item['harga_estimasi']:,}"
+                    f"📍 Status: `{status_curr}` | 💰 Est: Rp {item.get('harga_estimasi', 0):,}"
                 )
 
                 st.markdown("📂 **Unduh Lampiran Berkas OPB / IOM / BAST:**")
                 render_download_buttons(item, key_prefix=f"dash_{idx}")
 
+                timeline_list = item.get("timeline") or []
                 with st.expander(
-                    f"📜 Timeline & Jejak Verifikasi Tanda Tangan ({len(item['timeline'])} Aktivitas)"
+                    f"📜 Timeline & Jejak Verifikasi Tanda Tangan ({len(timeline_list)} Aktivitas)"
                 ):
-                    if item["timeline"]:
+                    if timeline_list:
                         st.markdown(
                             "<div class='timeline-container'>",
                             unsafe_allow_html=True,
                         )
-                        for log_entry in item["timeline"]:
+                        for log_entry in timeline_list:
                             if isinstance(log_entry, dict):
                                 waktu_log = log_entry.get("waktu", "")
                                 pesan_log = log_entry.get("pesan", "")
@@ -644,7 +682,7 @@ else:
                             if sig:
                                 sig_badge_html = f"""
                                 <br><span class="digital-signature-badge">
-                                    🔏 Signed digitally by <b>{sig['signed_by']}</b> ({sig['role']}) | {sig['hash']}
+                                    🔏 Signed digitally by <b>{sig.get('signed_by','')}</b> ({sig.get('role','')}) | {sig.get('hash','')}
                                 </span>
                                 """
 
@@ -672,39 +710,40 @@ else:
             )
             st.markdown("##### 📈 Distribusi Berkas per Tahapan")
 
-            status_counts = df_opb["status"].value_counts().reset_index()
-            status_counts.columns = ["Status Tahapan", "Jumlah OPB"]
+            if "status" in df_opb.columns:
+                status_counts = df_opb["status"].value_counts().reset_index()
+                status_counts.columns = ["Status Tahapan", "Jumlah OPB"]
 
-            fig = px.bar(
-                status_counts,
-                x="Jumlah OPB",
-                y="Status Tahapan",
-                orientation="h",
-                color="Jumlah OPB",
-                color_continuous_scale="Purples",
-                text="Jumlah OPB",
-            )
+                fig = px.bar(
+                    status_counts,
+                    x="Jumlah OPB",
+                    y="Status Tahapan",
+                    orientation="h",
+                    color="Jumlah OPB",
+                    color_continuous_scale="Purples",
+                    text="Jumlah OPB",
+                )
 
-            fig.update_layout(
-                margin=dict(l=10, r=10, t=10, b=10),
-                height=280,
-                xaxis_title="Jumlah OPB",
-                yaxis_title=None,
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(
-                    family="Inter, sans-serif", size=12, color="#475569"
-                ),
-                coloraxis_showscale=False,
-            )
-            fig.update_traces(
-                textposition="outside",
-                marker_line_color="rgb(99, 102, 241)",
-                marker_line_width=1.5,
-                opacity=0.85,
-            )
+                fig.update_layout(
+                    margin=dict(l=10, r=10, t=10, b=10),
+                    height=280,
+                    xaxis_title="Jumlah OPB",
+                    yaxis_title=None,
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    font=dict(
+                        family="Inter, sans-serif", size=12, color="#475569"
+                    ),
+                    coloraxis_showscale=False,
+                )
+                fig.update_traces(
+                    textposition="outside",
+                    marker_line_color="rgb(99, 102, 241)",
+                    marker_line_width=1.5,
+                    opacity=0.85,
+                )
 
-            st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True)
             st.markdown("</div>", unsafe_allow_html=True)
 
     else:
@@ -761,15 +800,26 @@ else:
 
             if submit:
                 if nama_barang and file_opb:
-                    with st.spinner("Menyimpan berkas..."):
+                    with st.spinner("Menyimpan ke Cloud Supabase..."):
                         file_bytes = file_opb.getvalue()
                         file_name = file_opb.name
 
+                        new_id = (
+                            max(
+                                [
+                                    x.get("id", 0)
+                                    for x in st.session_state["db_opb"]
+                                ],
+                                default=0,
+                            )
+                            + 1
+                        )
                         sig_eng = generate_digital_signature(
                             "Engineering", user_info["name"], nomor_opb
                         )
+
                         data_baru = {
-                            "id": len(st.session_state["db_opb"]) + 1,
+                            "id": new_id,
                             "nomor_opb": nomor_opb,
                             "nama_barang": nama_barang,
                             "jumlah": jumlah,
@@ -794,9 +844,8 @@ else:
                             digital_sig=sig_eng,
                         )
 
-                        # SIMPAN KE SESSION STATE DAN LOKAL JSON FILE
-                        st.session_state["db_opb"].append(data_baru)
-                        save_database(st.session_state["db_opb"])
+                        # SIMPAN PERMANEN KE CLOUD DATABASE SUPABASE
+                        save_single_item(data_baru)
 
                         st.toast(
                             "🚀 OPB Berhasil diteruskan ke Purchasing!",
@@ -819,7 +868,7 @@ else:
             items = [
                 x
                 for x in st.session_state["db_opb"]
-                if x["status"]
+                if x.get("status")
                 == "7. Verifikasi Penerimaan Barang (Engineering)"
             ]
             if not items:
@@ -831,11 +880,11 @@ else:
                     st.session_state["target_focus_id"] == item["id"]
                 )
                 with st.expander(
-                    f"📦 {item['nomor_opb']} - {item['nama_barang']}",
+                    f"📦 {item.get('nomor_opb','')} - {item.get('nama_barang','')}",
                     expanded=is_expanded,
                 ):
-                    st.write(f"**Jumlah:** {item['jumlah']}")
-                    st.write(f"**Vendor:** {item['vendor']}")
+                    st.write(f"**Jumlah:** {item.get('jumlah', 1)}")
+                    st.write(f"**Vendor:** {item.get('vendor', '-')}")
                     st.markdown("📂 **Tinjau Berkas & BAST dari Purchasing:**")
                     render_download_buttons(item, key_prefix="eng_tab2")
                     st.markdown("<br>", unsafe_allow_html=True)
@@ -852,7 +901,7 @@ else:
                         sig_rcv = generate_digital_signature(
                             "Engineering (Penerima)",
                             user_info["name"],
-                            item["nomor_opb"],
+                            item.get("nomor_opb", ""),
                         )
                         item["status"] = "8. Selesai"
                         catat_log(
@@ -861,8 +910,8 @@ else:
                             digital_sig=sig_rcv,
                         )
 
-                        # SIMPAN PERUBAHAN PERMANEN
-                        save_database(st.session_state["db_opb"])
+                        # UPDATE SUPABASE
+                        save_single_item(item)
 
                         st.session_state["target_focus_id"] = None
                         st.toast(
@@ -890,7 +939,8 @@ else:
             items = [
                 x
                 for x in st.session_state["db_opb"]
-                if x["status"] in ["1. Penawaran Purchasing", "Revisi BM (OPB)"]
+                if x.get("status")
+                in ["1. Penawaran Purchasing", "Revisi BM (OPB)"]
             ]
             if not items:
                 st.info("Tidak ada tugas penawaran barang saat ini.")
@@ -899,26 +949,31 @@ else:
                     st.session_state["target_focus_id"] == item["id"]
                 )
                 with st.expander(
-                    f"📌 {item['nomor_opb']} - {item['nama_barang']}",
+                    f"📌 {item.get('nomor_opb','')} - {item.get('nama_barang','')}",
                     expanded=is_expanded,
                 ):
-                    st.write(f"**Spesifikasi/Kebutuhan:** {item['keterangan']}")
+                    st.write(
+                        f"**Spesifikasi/Kebutuhan:** {item.get('keterangan','')}"
+                    )
                     st.markdown("📄 **Tinjau Dokumen OPB dari Engineering:**")
                     render_download_buttons(item, key_prefix="pur_tab1")
 
-                    if item["catatan_bm"] != "-":
-                        st.error(f"Catatan Revisi BM: {item['catatan_bm']}")
+                    # Menggunakan .get() agar aman dari KeyError
+                    if item.get("catatan_bm", "-") != "-":
+                        st.error(
+                            f"Catatan Revisi BM: {item.get('catatan_bm')}"
+                        )
 
                     st.divider()
                     vendor = st.text_input(
                         "Nama Vendor/Pemasok Pilihan",
-                        value=item["vendor"],
+                        value=item.get("vendor", "-"),
                         key=f"v_{item['id']}",
                     )
                     harga = st.number_input(
                         "Estimasi Total Harga (Rp)",
                         min_value=0,
-                        value=int(item["harga_estimasi"]),
+                        value=int(item.get("harga_estimasi", 0)),
                         key=f"h_{item['id']}",
                     )
 
@@ -928,7 +983,9 @@ else:
                         type="primary",
                     ):
                         sig_pur = generate_digital_signature(
-                            "Purchasing", user_info["name"], item["nomor_opb"]
+                            "Purchasing",
+                            user_info["name"],
+                            item.get("nomor_opb", ""),
                         )
                         item["vendor"] = vendor
                         item["harga_estimasi"] = harga
@@ -939,7 +996,7 @@ else:
                             digital_sig=sig_pur,
                         )
 
-                        save_database(st.session_state["db_opb"])
+                        save_single_item(item)
                         st.session_state["target_focus_id"] = None
                         st.toast("📩 Berhasil dikirim ke BM!", icon="✅")
                         st.rerun()
@@ -953,7 +1010,7 @@ else:
             items = [
                 x
                 for x in st.session_state["db_opb"]
-                if x["status"]
+                if x.get("status")
                 in [
                     "3. Pembuatan IOM (Purchasing)",
                     "Revisi Finance",
@@ -967,14 +1024,23 @@ else:
                     st.session_state["target_focus_id"] == item["id"]
                 )
                 with st.expander(
-                    f"📑 {item['nomor_opb']} - {item['nama_barang']}",
+                    f"📑 {item.get('nomor_opb','')} - {item.get('nama_barang','')}",
                     expanded=is_expanded,
                 ):
                     st.write(
-                        f"**Vendor Pilihan:** {item['vendor']} | **Estimasi Harga:** Rp {item['harga_estimasi']:,}"
+                        f"**Vendor Pilihan:** {item.get('vendor','-')} | **Estimasi Harga:** Rp {item.get('harga_estimasi',0):,}"
                     )
                     st.markdown("📄 **Lihat Berkas Terkait:**")
                     render_download_buttons(item, key_prefix="pur_tab2")
+
+                    if item.get("catatan_finance", "-") != "-":
+                        st.error(
+                            f"Catatan Revisi Finance: {item.get('catatan_finance')}"
+                        )
+                    if item.get("catatan_p3srs", "-") != "-":
+                        st.error(
+                            f"Catatan Revisi P3SRS: {item.get('catatan_p3srs')}"
+                        )
 
                     st.divider()
                     file_iom = st.file_uploader(
@@ -994,7 +1060,7 @@ else:
                             sig_pur_iom = generate_digital_signature(
                                 "Purchasing (IOM Draft)",
                                 user_info["name"],
-                                item["nomor_opb"],
+                                item.get("nomor_opb", ""),
                             )
                             item["file_iom_bytes"] = iom_bytes
                             item["file_iom_name"] = iom_name
@@ -1005,7 +1071,7 @@ else:
                                 digital_sig=sig_pur_iom,
                             )
 
-                            save_database(st.session_state["db_opb"])
+                            save_single_item(item)
                             st.session_state["target_focus_id"] = None
                             st.toast(
                                 "📩 Draft IOM Dikirim ke Finance!", icon="✅"
@@ -1025,7 +1091,7 @@ else:
             items = [
                 x
                 for x in st.session_state["db_opb"]
-                if x["status"]
+                if x.get("status")
                 in [
                     "6. Pembelian Barang (Purchasing)",
                     "6. Serah Terima Barang (Purchasing -> Engineering)",
@@ -1038,11 +1104,11 @@ else:
                     st.session_state["target_focus_id"] == item["id"]
                 )
                 with st.expander(
-                    f"💳 {item['nomor_opb']} - {item['nama_barang']}",
+                    f"💳 {item.get('nomor_opb','')} - {item.get('nama_barang','')}",
                     expanded=is_expanded,
                 ):
                     st.write(
-                        f"**Vendor:** {item['vendor']} | **Budget Approved:** Rp {item['harga_estimasi']:,}"
+                        f"**Vendor:** {item.get('vendor','-')} | **Budget Approved:** Rp {item.get('harga_estimasi',0):,}"
                     )
                     st.markdown("📂 **Unduh Lampiran Lengkap:**")
                     render_download_buttons(item, key_prefix="pur_tab3")
@@ -1075,7 +1141,7 @@ else:
                         sig_handover = generate_digital_signature(
                             "Purchasing (Penyerah)",
                             user_info["name"],
-                            item["nomor_opb"],
+                            item.get("nomor_opb", ""),
                         )
                         item[
                             "status"
@@ -1086,7 +1152,7 @@ else:
                             digital_sig=sig_handover,
                         )
 
-                        save_database(st.session_state["db_opb"])
+                        save_single_item(item)
                         st.session_state["target_focus_id"] = None
                         st.toast(
                             "📦 Barang & BAST berhasil diserahkan ke Engineering!",
@@ -1109,7 +1175,7 @@ else:
             items = [
                 x
                 for x in st.session_state["db_opb"]
-                if x["status"] == "2. Review BM"
+                if x.get("status") == "2. Review BM"
             ]
             if not items:
                 st.info("Tidak ada OPB baru menunggu persetujuan.")
@@ -1118,12 +1184,12 @@ else:
                     st.session_state["target_focus_id"] == item["id"]
                 )
                 with st.expander(
-                    f"🧐 Review OPB: {item['nomor_opb']} - {item['nama_barang']}",
+                    f"🧐 Review OPB: {item.get('nomor_opb','')} - {item.get('nama_barang','')}",
                     expanded=is_expanded,
                 ):
-                    st.write(f"**Vendor:** {item['vendor']}")
+                    st.write(f"**Vendor:** {item.get('vendor','-')}")
                     st.write(
-                        f"**Estimasi Harga:** Rp {item['harga_estimasi']:,}"
+                        f"**Estimasi Harga:** Rp {item.get('harga_estimasi',0):,}"
                     )
                     st.markdown("📂 **Tinjau Dokumen OPB dari Engineering:**")
                     render_download_buttons(item, key_prefix="bm_tab1")
@@ -1148,7 +1214,7 @@ else:
                             sig_bm = generate_digital_signature(
                                 "Building Manager",
                                 user_info["name"],
-                                item["nomor_opb"],
+                                item.get("nomor_opb", ""),
                             )
                             item["status"] = "3. Pembuatan IOM (Purchasing)"
                             catat_log(
@@ -1157,7 +1223,7 @@ else:
                                 digital_sig=sig_bm,
                             )
 
-                            save_database(st.session_state["db_opb"])
+                            save_single_item(item)
                             st.session_state["target_focus_id"] = None
                             st.toast("✅ OPB Disetujui!", icon="👍")
                             st.rerun()
@@ -1173,7 +1239,7 @@ else:
                                 item, f"BM meminta revisi OPB: {catatan}"
                             )
 
-                            save_database(st.session_state["db_opb"])
+                            save_single_item(item)
                             st.session_state["target_focus_id"] = None
                             st.toast(
                                 "⚠️ Diminta Revisi ke Purchasing", icon="🔄"
@@ -1188,7 +1254,7 @@ else:
             items = [
                 x
                 for x in st.session_state["db_opb"]
-                if x["status"] == "5. Approval Akhir (BM & P3SRS)"
+                if x.get("status") == "5. Approval Akhir (BM & P3SRS)"
             ]
             if not items:
                 st.info("Tidak ada IOM menunggu persetujuan final.")
@@ -1197,11 +1263,11 @@ else:
                     st.session_state["target_focus_id"] == item["id"]
                 )
                 with st.expander(
-                    f"📑 Approval IOM: {item['nomor_opb']} - {item['nama_barang']}",
+                    f"📑 Approval IOM: {item.get('nomor_opb','')} - {item.get('nama_barang','')}",
                     expanded=is_expanded,
                 ):
                     st.write(
-                        f"**Vendor:** {item['vendor']} | **Total Budget:** Rp {item['harga_estimasi']:,}"
+                        f"**Vendor:** {item.get('vendor','-')} | **Total Budget:** Rp {item.get('harga_estimasi',0):,}"
                     )
                     st.markdown("📂 **Tinjau Dokumen OPB & IOM:**")
                     render_download_buttons(item, key_prefix="bm_tab2")
@@ -1219,7 +1285,7 @@ else:
                         sig_bm_iom = generate_digital_signature(
                             "Building Manager (IOM Final)",
                             user_info["name"],
-                            item["nomor_opb"],
+                            item.get("nomor_opb", ""),
                         )
                         catat_log(
                             item,
@@ -1227,7 +1293,7 @@ else:
                             digital_sig=sig_bm_iom,
                         )
 
-                        save_database(st.session_state["db_opb"])
+                        save_single_item(item)
                         st.session_state["target_focus_id"] = None
                         st.toast("✅ Persetujuan BM dicatat!", icon="👍")
                         st.rerun()
@@ -1240,7 +1306,7 @@ else:
         items = [
             x
             for x in st.session_state["db_opb"]
-            if x["status"] == "4. Review Finance"
+            if x.get("status") == "4. Review Finance"
         ]
         if not items:
             st.info(
@@ -1249,11 +1315,13 @@ else:
         for item in items:
             is_expanded = st.session_state["target_focus_id"] == item["id"]
             with st.expander(
-                f"💵 Review IOM: {item['nomor_opb']} - {item['nama_barang']}",
+                f"💵 Review IOM: {item.get('nomor_opb','')} - {item.get('nama_barang','')}",
                 expanded=is_expanded,
             ):
-                st.write(f"**Vendor:** {item['vendor']}")
-                st.write(f"**Pengajuan Dana:** Rp {item['harga_estimasi']:,}")
+                st.write(f"**Vendor:** {item.get('vendor','-')}")
+                st.write(
+                    f"**Pengajuan Dana:** Rp {item.get('harga_estimasi',0):,}"
+                )
                 st.markdown("📂 **Tinjau Lampiran OPB dari Engineering & IOM:**")
                 render_download_buttons(item, key_prefix="fin_panel")
 
@@ -1274,7 +1342,9 @@ else:
                         use_container_width=True,
                     ):
                         sig_fin = generate_digital_signature(
-                            "Finance Officer", user_info["name"], item["nomor_opb"]
+                            "Finance Officer",
+                            user_info["name"],
+                            item.get("nomor_opb", ""),
                         )
                         item["status"] = "5. Approval Akhir (BM & P3SRS)"
                         catat_log(
@@ -1283,7 +1353,7 @@ else:
                             digital_sig=sig_fin,
                         )
 
-                        save_database(st.session_state["db_opb"])
+                        save_single_item(item)
                         st.session_state["target_focus_id"] = None
                         st.toast("💰 Budget Disetujui!", icon="✅")
                         st.rerun()
@@ -1299,7 +1369,7 @@ else:
                             item, f"Finance meminta revisi budget: {catatan}"
                         )
 
-                        save_database(st.session_state["db_opb"])
+                        save_single_item(item)
                         st.session_state["target_focus_id"] = None
                         st.toast("⚠️ Permintaan Revisi dikirim!", icon="🔄")
                         st.rerun()
@@ -1312,19 +1382,19 @@ else:
         items = [
             x
             for x in st.session_state["db_opb"]
-            if x["status"] == "5. Approval Akhir (BM & P3SRS)"
+            if x.get("status") == "5. Approval Akhir (BM & P3SRS)"
         ]
         if not items:
             st.info("Tidak ada IOM yang menunggu persetujuan P3SRS.")
         for item in items:
             is_expanded = st.session_state["target_focus_id"] == item["id"]
             with st.expander(
-                f"⚖️ Persetujuan Final: {item['nomor_opb']} - {item['nama_barang']}",
+                f"⚖️ Persetujuan Final: {item.get('nomor_opb','')} - {item.get('nama_barang','')}",
                 expanded=is_expanded,
             ):
-                st.write(f"**Vendor:** {item['vendor']}")
+                st.write(f"**Vendor:** {item.get('vendor','-')}")
                 st.write(
-                    f"**Total Anggaran:** Rp {item['harga_estimasi']:,}"
+                    f"**Total Anggaran:** Rp {item.get('harga_estimasi',0):,}"
                 )
                 st.markdown("📂 **Tinjau Dokumen OPB dari Engineering & IOM:**")
                 render_download_buttons(item, key_prefix="p3srs_panel")
@@ -1346,7 +1416,9 @@ else:
                         use_container_width=True,
                     ):
                         sig_p3srs = generate_digital_signature(
-                            "Pengurus P3SRS", user_info["name"], item["nomor_opb"]
+                            "Pengurus P3SRS",
+                            user_info["name"],
+                            item.get("nomor_opb", ""),
                         )
                         item[
                             "status"
@@ -1357,7 +1429,7 @@ else:
                             digital_sig=sig_p3srs,
                         )
 
-                        save_database(st.session_state["db_opb"])
+                        save_single_item(item)
                         st.session_state["target_focus_id"] = None
                         st.toast("🎉 IOM Disetujui P3SRS!", icon="✅")
                         st.rerun()
@@ -1374,7 +1446,7 @@ else:
                             f"P3SRS menolak/meminta revisi IOM: {catatan}",
                         )
 
-                        save_database(st.session_state["db_opb"])
+                        save_single_item(item)
                         st.session_state["target_focus_id"] = None
                         st.toast(
                             "⚠️ Revisi Dikirim ke Purchasing!", icon="🔄"
