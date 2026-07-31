@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import json
 import os
 from datetime import datetime
 import pandas as pd
@@ -17,28 +18,76 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+DB_FILE = "db_opb.json"
 
-# --- 2. FUNGSI LOAD LOTTIE ANIMATION ---
-def load_lottieurl(url: str):
+
+# --- 2. FUNGSI PERSISTENSI DATA (JSON STORAGE) ---
+def load_database():
+    """Membaca database dari file JSON agar data tidak hilang saat refresh."""
+    if os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                # Decode bytes jika sebelumnya disimpan dalam format base64
+                for item in data:
+                    if item.get("file_opb_b64"):
+                        item["file_opb_bytes"] = base64.b64decode(
+                            item["file_opb_b64"]
+                        )
+                    if item.get("file_iom_b64"):
+                        item["file_iom_bytes"] = base64.b64decode(
+                            item["file_iom_b64"]
+                        )
+                    if item.get("file_bast_b64"):
+                        item["file_bast_bytes"] = base64.b64decode(
+                            item["file_bast_b64"]
+                        )
+                return data
+        except Exception as e:
+            st.error(f"Gagal memuat database JSON: {e}")
+            return []
+    return []
+
+
+def save_database(data):
+    """Menyimpan database session state ke file JSON lokal."""
     try:
-        r = requests.get(url, timeout=5)
-        if r.status_code != 200:
-            return None
-        return r.json()
-    except Exception:
-        return None
+        # Buat copy data agar tidak merusak objek memori Streamlit saat encode b64
+        data_to_save = []
+        for item in data:
+            item_copy = item.copy()
+
+            # Encode byte stream (PDF/File) ke string base64 agar aman disimpan di JSON
+            if item_copy.get("file_opb_bytes"):
+                item_copy["file_opb_b64"] = base64.b64encode(
+                    item_copy["file_opb_bytes"]
+                ).decode("utf-8")
+                del item_copy["file_opb_bytes"]
+            if item_copy.get("file_iom_bytes"):
+                item_copy["file_iom_b64"] = base64.b64encode(
+                    item_copy["file_iom_bytes"]
+                ).decode("utf-8")
+                del item_copy["file_iom_bytes"]
+            if item_copy.get("file_bast_bytes"):
+                item_copy["file_bast_b64"] = base64.b64encode(
+                    item_copy["file_bast_bytes"]
+                ).decode("utf-8")
+                del item_copy["file_bast_bytes"]
+
+            data_to_save.append(item_copy)
+
+        with open(DB_FILE, "w", encoding="utf-8") as f:
+            json.dump(data_to_save, f, indent=4, ensure_ascii=False)
+    except Exception as e:
+        st.error(f"Gagal menyimpan ke database JSON: {e}")
 
 
-# --- 3. ADVANCED CUSTOM CSS & ANIMATED TIMELINE ---
+# --- 3. CUSTOM CSS & ANIMATED TIMELINE ---
 st.markdown(
     """
     <style>
-    /* Global App Background */
-    .stApp {
-        background: #f8fafc;
-    }
+    .stApp { background: #f8fafc; }
     
-    /* Header Utama Gradient */
     .main-header {
         background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);
         padding: 28px 35px;
@@ -47,201 +96,81 @@ st.markdown(
         margin-bottom: 25px;
         box-shadow: 0 10px 25px -5px rgba(67, 56, 202, 0.3);
     }
-    .main-header h1 {
-        color: #ffffff !important;
-        font-weight: 800;
-        letter-spacing: -0.5px;
-        margin: 0;
-        font-size: 30px;
-    }
-    .main-header p {
-        color: #c7d2fe;
-        margin-top: 6px;
-        margin-bottom: 0;
-        font-size: 14px;
-    }
+    .main-header h1 { color: #ffffff !important; font-weight: 800; letter-spacing: -0.5px; margin: 0; font-size: 30px; }
+    .main-header p { color: #c7d2fe; margin-top: 6px; margin-bottom: 0; font-size: 14px; }
     
-    /* Custom Designed Metric Cards */
     .kpi-card {
-        background: white;
-        border-radius: 16px;
-        padding: 20px 24px;
-        box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
-        border: 1px solid #e2e8f0;
-        position: relative;
-        overflow: hidden;
-        transition: all 0.3s ease;
+        background: white; border-radius: 16px; padding: 20px 24px;
+        box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0;
+        position: relative; overflow: hidden; transition: all 0.3s ease;
     }
-    .kpi-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 12px 25px -5px rgba(0, 0, 0, 0.08);
-    }
+    .kpi-card:hover { transform: translateY(-4px); box-shadow: 0 12px 25px -5px rgba(0, 0, 0, 0.08); }
     .kpi-blue { border-top: 4px solid #3b82f6; }
     .kpi-amber { border-top: 4px solid #f59e0b; }
     .kpi-emerald { border-top: 4px solid #10b981; }
     .kpi-purple { border-top: 4px solid #8b5cf6; }
     
-    .kpi-title {
-        color: #64748b;
-        font-size: 12px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.8px;
-    }
-    .kpi-value {
-        color: #0f172a;
-        font-size: 28px;
-        font-weight: 800;
-        margin-top: 6px;
-    }
-    .kpi-sub {
-        font-size: 12px;
-        font-weight: 600;
-        margin-top: 4px;
-    }
+    .kpi-title { color: #64748b; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; }
+    .kpi-value { color: #0f172a; font-size: 28px; font-weight: 800; margin-top: 6px; }
+    .kpi-sub { font-size: 12px; font-weight: 600; margin-top: 4px; }
     
-    /* User Profile Card SideBar */
     .user-profile-card {
-        background: white;
-        padding: 16px 20px;
-        border-radius: 14px;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.03);
-        margin-bottom: 15px;
+        background: white; padding: 16px 20px; border-radius: 14px;
+        border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.03); margin-bottom: 15px;
     }
     .role-badge {
-        background: #e0e7ff;
-        color: #3730a3;
-        padding: 3px 10px;
-        border-radius: 20px;
-        font-size: 11px;
-        font-weight: 700;
-        display: inline-block;
-        margin-top: 5px;
+        background: #e0e7ff; color: #3730a3; padding: 3px 10px;
+        border-radius: 20px; font-size: 11px; font-weight: 700; display: inline-block; margin-top: 5px;
     }
     
-    /* Notification Alert Box Interaktif */
     .notif-box {
         background: linear-gradient(135deg, #fffbe3 0%, #fef3c7 100%);
-        border-left: 5px solid #f59e0b;
-        color: #78350f;
-        padding: 18px 22px;
-        border-radius: 16px;
-        margin-bottom: 22px;
-        box-shadow: 0 4px 15px rgba(245, 158, 11, 0.12);
+        border-left: 5px solid #f59e0b; color: #78350f; padding: 18px 22px;
+        border-radius: 16px; margin-bottom: 22px; box-shadow: 0 4px 15px rgba(245, 158, 11, 0.12);
     }
     
-    /* Main Content Card Container */
     .content-box {
-        background: white;
-        border-radius: 16px;
-        padding: 24px;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 4px 15px -3px rgba(0,0,0,0.03);
-        margin-bottom: 20px;
+        background: white; border-radius: 16px; padding: 24px;
+        border: 1px solid #e2e8f0; box-shadow: 0 4px 15px -3px rgba(0,0,0,0.03); margin-bottom: 20px;
     }
     
-    /* ================= KEYFRAME ANIMATED TIMELINE ================= */
     @keyframes slideInUp {
-        0% {
-            opacity: 0;
-            transform: translateY(18px);
-        }
-        100% {
-            opacity: 1;
-            transform: translateY(0);
-        }
+        0% { opacity: 0; transform: translateY(18px); }
+        100% { opacity: 1; transform: translateY(0); }
     }
-
     @keyframes pulseGlow {
-        0% {
-            box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.5);
-        }
-        70% {
-            box-shadow: 0 0 0 8px rgba(99, 102, 241, 0);
-        }
-        100% {
-            box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
-        }
+        0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.5); }
+        70% { box-shadow: 0 0 0 8px rgba(99, 102, 241, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
     }
 
-    .timeline-container {
-        position: relative;
-        padding-left: 24px;
-        margin: 20px 0 10px 10px;
-        border-left: 3px solid #e2e8f0;
-    }
-    
+    .timeline-container { position: relative; padding-left: 24px; margin: 20px 0 10px 10px; border-left: 3px solid #e2e8f0; }
     .timeline-card {
-        position: relative;
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 14px;
-        padding: 14px 18px;
-        margin-bottom: 16px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
-        animation: slideInUp 0.4s ease-out forwards;
+        position: relative; background: #ffffff; border: 1px solid #e2e8f0;
+        border-radius: 14px; padding: 14px 18px; margin-bottom: 16px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03); animation: slideInUp 0.4s ease-out forwards;
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
-    
-    .timeline-card:hover {
-        transform: translateX(5px);
-        border-color: #818cf8;
-        box-shadow: 0 8px 20px rgba(99, 102, 241, 0.12);
-    }
-    
+    .timeline-card:hover { transform: translateX(5px); border-color: #818cf8; box-shadow: 0 8px 20px rgba(99, 102, 241, 0.12); }
     .timeline-card::before {
-        content: '';
-        position: absolute;
-        left: -32px;
-        top: 18px;
-        width: 14px;
-        height: 14px;
-        border-radius: 50%;
-        background-color: #6366f1;
-        border: 3px solid #ffffff;
-        animation: pulseGlow 2s infinite;
+        content: ''; position: absolute; left: -32px; top: 18px; width: 14px; height: 14px;
+        border-radius: 50%; background-color: #6366f1; border: 3px solid #ffffff; animation: pulseGlow 2s infinite;
     }
-    
     .timeline-time {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        background: #e0e7ff;
-        color: #3730a3;
-        font-size: 11px;
-        font-weight: 700;
-        padding: 3px 10px;
-        border-radius: 12px;
-        margin-bottom: 8px;
+        display: inline-flex; align-items: center; gap: 5px; background: #e0e7ff;
+        color: #3730a3; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 12px; margin-bottom: 8px;
     }
-    
-    .timeline-desc {
-        color: #0f172a;
-        font-size: 13.5px;
-        font-weight: 500;
-        line-height: 1.5;
-        margin: 0;
-    }
-
-    /* Badge Tanda Tangan Digital */
+    .timeline-desc { color: #0f172a; font-size: 13.5px; font-weight: 500; line-height: 1.5; margin: 0; }
     .digital-signature-badge {
-        display: inline-block;
-        background: #ecfdf5;
-        border: 1px dashed #10b981;
-        color: #047857;
-        font-size: 11px;
-        padding: 4px 8px;
-        border-radius: 6px;
-        margin-top: 6px;
-        font-family: monospace;
+        display: inline-block; background: #ecfdf5; border: 1px dashed #10b981;
+        color: #047857; font-size: 11px; padding: 4px 8px; border-radius: 6px; margin-top: 6px; font-family: monospace;
     }
     </style>
 """,
     unsafe_allow_html=True,
 )
 
-# --- 4. DATABASE USER & PASSWORD (MULTI-ROLE) ---
+# --- 4. DATABASE USER & PASSWORD ---
 USERS = {
     "engineering": {
         "password": "eng123",
@@ -271,7 +200,7 @@ USERS = {
 }
 
 
-# --- 5. FUNGSI SIMPAN FILE, LOG, DAN TANDA TANGAN DIGITAL ---
+# --- 5. FUNGSI LOG DAN TANDA TANGAN DIGITAL ---
 def generate_digital_signature(user_role, user_name, doc_id):
     wib = pytz.timezone("Asia/Jakarta")
     waktu = datetime.now(wib).strftime("%Y-%m-%d %H:%M:%S")
@@ -285,22 +214,6 @@ def generate_digital_signature(user_role, user_name, doc_id):
     }
 
 
-def upload_to_google_drive(file_name, file_bytes, mime_type, folder_id):
-    try:
-        upload_dir = os.path.join(os.getcwd(), "uploads")
-        clean_file_name = file_name.replace("/", "_").replace("\\", "_")
-        os.makedirs(upload_dir, exist_ok=True)
-
-        file_path = os.path.join(upload_dir, clean_file_name)
-        with open(file_path, "wb") as f:
-            f.write(file_bytes)
-
-        return file_path
-    except Exception as e:
-        st.error(f"❌ Gagal menyimpan file: {e}")
-        return None
-
-
 def catat_log(item, pesan, digital_sig=None):
     wib = pytz.timezone("Asia/Jakarta")
     waktu_sekarang = datetime.now(wib).strftime("%d/%m/%Y %H:%M:%S")
@@ -311,7 +224,6 @@ def catat_log(item, pesan, digital_sig=None):
 
 
 def render_download_buttons(item, key_prefix="dl"):
-    """Fungsi pembantu untuk menampilkan tombol download OPB, IOM, dan Dokumen BAST."""
     col1, col2, col3 = st.columns(3)
     with col1:
         if item.get("file_opb_bytes"):
@@ -362,7 +274,6 @@ def render_download_buttons(item, key_prefix="dl"):
 
 
 def render_signature_pad(key_id):
-    """Komponen HTML5 Canvas Interaktif untuk Tanda Tangan Digital."""
     canvas_html = f"""
     <div style="border:1px dashed #6366f1; padding:10px; border-radius:10px; background:#f8fafc; text-align:center;">
         <label style="font-size:12px; font-weight:bold; color:#3730a3; display:block; margin-bottom:5px;">
@@ -406,7 +317,6 @@ def render_signature_pad(key_id):
     components.html(canvas_html, height=190)
 
 
-# --- 6. FUNGSI CEK NOTIFIKASI PER DIVISI ---
 def cek_notifikasi_user(role):
     db = st.session_state["db_opb"]
     pending_items = []
@@ -448,18 +358,16 @@ def cek_notifikasi_user(role):
     return pending_items
 
 
-# --- 7. INITIALIZATION SESSION STATE ---
+# --- 6. INITIALIZATION SESSION STATE BERBASIS JSON ---
 if "db_opb" not in st.session_state:
-    st.session_state["db_opb"] = []
+    st.session_state["db_opb"] = load_database()  # Load otomatis dari JSON
 
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 if "user_info" not in st.session_state:
     st.session_state["user_info"] = None
-
 if "notif_shown" not in st.session_state:
     st.session_state["notif_shown"] = False
-
 if "target_focus_id" not in st.session_state:
     st.session_state["target_focus_id"] = None
 
@@ -496,9 +404,7 @@ if not st.session_state["logged_in"]:
                 placeholder="Contoh: engineering, purchasing, bm, p3srs...",
             )
             password_input = st.text_input(
-                "Password",
-                type="password",
-                placeholder="Masukkan password...",
+                "Password", type="password", placeholder="Masukkan password..."
             )
             submit_login = st.form_submit_button(
                 "🔒 Masuk ke Portal", type="primary", use_container_width=True
@@ -529,7 +435,6 @@ else:
     user_info = st.session_state["user_info"]
     role = user_info["role"]
 
-    # --- POP-UP NOTIFIKASI TOAST ---
     pending_tasks = cek_notifikasi_user(role)
     if pending_tasks and not st.session_state["notif_shown"]:
         st.toast(
@@ -538,7 +443,6 @@ else:
         )
         st.session_state["notif_shown"] = True
 
-    # --- SIDEBAR USER PROFILE ---
     st.sidebar.markdown(
         f"""
         <div class="user-profile-card">
@@ -561,7 +465,6 @@ else:
 
     st.sidebar.markdown("---")
 
-    # --- HEADER BANNER ---
     st.markdown(
         f"""
         <div class="main-header">
@@ -572,7 +475,6 @@ else:
         unsafe_allow_html=True,
     )
 
-    # ================= BANNER NOTIFIKASI INTERAKTIF =================
     if pending_tasks:
         st.markdown(
             f"""
@@ -683,7 +585,6 @@ else:
 
         col_dash1, col_dash2 = st.columns([1.3, 1])
 
-        # PROGRESS WORKFLOW & ANIMATED TIMELINE DISPLAY
         with col_dash1:
             st.markdown(
                 "<div class='content-box'>", unsafe_allow_html=True
@@ -718,11 +619,9 @@ else:
                     f"📍 Status: `{status_curr}` | 💰 Est: Rp {item['harga_estimasi']:,}"
                 )
 
-                # UNDUH BERKAS UNTUK SELURUH PERAN DARI DASHBOARD
                 st.markdown("📂 **Unduh Lampiran Berkas OPB / IOM / BAST:**")
                 render_download_buttons(item, key_prefix=f"dash_{idx}")
 
-                # ELEGAN VISUAL ANIMATED TIMELINE DESIGN
                 with st.expander(
                     f"📜 Timeline & Jejak Verifikasi Tanda Tangan ({len(item['timeline'])} Aktivitas)"
                 ):
@@ -865,49 +764,45 @@ else:
                     with st.spinner("Menyimpan berkas..."):
                         file_bytes = file_opb.getvalue()
                         file_name = file_opb.name
-                        link = upload_to_google_drive(
-                            f"{nomor_opb}_{file_name}",
-                            file_bytes,
-                            file_opb.type,
-                            "Engineering",
+
+                        sig_eng = generate_digital_signature(
+                            "Engineering", user_info["name"], nomor_opb
                         )
-                        if link:
-                            sig_eng = generate_digital_signature(
-                                "Engineering", user_info["name"], nomor_opb
-                            )
-                            data_baru = {
-                                "id": len(st.session_state["db_opb"]) + 1,
-                                "nomor_opb": nomor_opb,
-                                "nama_barang": nama_barang,
-                                "jumlah": jumlah,
-                                "keterangan": keterangan,
-                                "link_opb": link,
-                                "file_opb_bytes": file_bytes,
-                                "file_opb_name": file_name,
-                                "harga_estimasi": 0,
-                                "vendor": "-",
-                                "link_iom": "-",
-                                "file_iom_bytes": None,
-                                "file_iom_name": "-",
-                                "file_bast_bytes": None,
-                                "file_bast_name": "-",
-                                "catatan_bm": "-",
-                                "catatan_finance": "-",
-                                "catatan_p3srs": "-",
-                                "status": "1. Penawaran Purchasing",
-                                "timeline": [],
-                            }
-                            catat_log(
-                                data_baru,
-                                f"OPB Dibuat & Diajukan oleh {user_info['name']} ke Purchasing",
-                                digital_sig=sig_eng,
-                            )
-                            st.session_state["db_opb"].append(data_baru)
-                            st.toast(
-                                "🚀 OPB Berhasil diteruskan ke Purchasing!",
-                                icon="✅",
-                            )
-                            st.rerun()
+                        data_baru = {
+                            "id": len(st.session_state["db_opb"]) + 1,
+                            "nomor_opb": nomor_opb,
+                            "nama_barang": nama_barang,
+                            "jumlah": jumlah,
+                            "keterangan": keterangan,
+                            "file_opb_bytes": file_bytes,
+                            "file_opb_name": file_name,
+                            "harga_estimasi": 0,
+                            "vendor": "-",
+                            "file_iom_bytes": None,
+                            "file_iom_name": "-",
+                            "file_bast_bytes": None,
+                            "file_bast_name": "-",
+                            "catatan_bm": "-",
+                            "catatan_finance": "-",
+                            "catatan_p3srs": "-",
+                            "status": "1. Penawaran Purchasing",
+                            "timeline": [],
+                        }
+                        catat_log(
+                            data_baru,
+                            f"OPB Dibuat & Diajukan oleh {user_info['name']} ke Purchasing",
+                            digital_sig=sig_eng,
+                        )
+
+                        # SIMPAN KE SESSION STATE DAN LOKAL JSON FILE
+                        st.session_state["db_opb"].append(data_baru)
+                        save_database(st.session_state["db_opb"])
+
+                        st.toast(
+                            "🚀 OPB Berhasil diteruskan ke Purchasing!",
+                            icon="✅",
+                        )
+                        st.rerun()
                 else:
                     st.warning(
                         "Mohon lengkapi Nama Barang dan Unggah Berkas OPB."
@@ -965,6 +860,10 @@ else:
                             f"Barang telah diverifikasi fisik dan diterima oleh {user_info['name']} (Engineering). BAST Ditandatangani.",
                             digital_sig=sig_rcv,
                         )
+
+                        # SIMPAN PERUBAHAN PERMANEN
+                        save_database(st.session_state["db_opb"])
+
                         st.session_state["target_focus_id"] = None
                         st.toast(
                             "✅ Berita Acara Serah Terima Selesai!", icon="🎉"
@@ -1039,6 +938,8 @@ else:
                             f"Purchasing menentukan vendor ({vendor}) & estimasi harga (Rp {harga:,}). Dikirim ke BM.",
                             digital_sig=sig_pur,
                         )
+
+                        save_database(st.session_state["db_opb"])
                         st.session_state["target_focus_id"] = None
                         st.toast("📩 Berhasil dikirim ke BM!", icon="✅")
                         st.rerun()
@@ -1089,18 +990,12 @@ else:
                         if file_iom:
                             iom_bytes = file_iom.getvalue()
                             iom_name = file_iom.name
-                            link = upload_to_google_drive(
-                                f"IOM_{item['nomor_opb']}_{iom_name}",
-                                iom_bytes,
-                                file_iom.type,
-                                "Purchasing",
-                            )
+
                             sig_pur_iom = generate_digital_signature(
                                 "Purchasing (IOM Draft)",
                                 user_info["name"],
                                 item["nomor_opb"],
                             )
-                            item["link_iom"] = link
                             item["file_iom_bytes"] = iom_bytes
                             item["file_iom_name"] = iom_name
                             item["status"] = "4. Review Finance"
@@ -1109,6 +1004,8 @@ else:
                                 "Purchasing mengunggah draft IOM dan meneruskan ke Finance.",
                                 digital_sig=sig_pur_iom,
                             )
+
+                            save_database(st.session_state["db_opb"])
                             st.session_state["target_focus_id"] = None
                             st.toast(
                                 "📩 Draft IOM Dikirim ke Finance!", icon="✅"
@@ -1188,6 +1085,8 @@ else:
                             f"Purchasing ({user_info['name']}) telah menyerahkan fisik barang & BAST ke Engineering.",
                             digital_sig=sig_handover,
                         )
+
+                        save_database(st.session_state["db_opb"])
                         st.session_state["target_focus_id"] = None
                         st.toast(
                             "📦 Barang & BAST berhasil diserahkan ke Engineering!",
@@ -1257,6 +1156,8 @@ else:
                                 "BM menyetujui OPB. Meneruskan ke Purchasing untuk buat IOM.",
                                 digital_sig=sig_bm,
                             )
+
+                            save_database(st.session_state["db_opb"])
                             st.session_state["target_focus_id"] = None
                             st.toast("✅ OPB Disetujui!", icon="👍")
                             st.rerun()
@@ -1271,6 +1172,8 @@ else:
                             catat_log(
                                 item, f"BM meminta revisi OPB: {catatan}"
                             )
+
+                            save_database(st.session_state["db_opb"])
                             st.session_state["target_focus_id"] = None
                             st.toast(
                                 "⚠️ Diminta Revisi ke Purchasing", icon="🔄"
@@ -1323,6 +1226,8 @@ else:
                             "BM menyetujui IOM Final.",
                             digital_sig=sig_bm_iom,
                         )
+
+                        save_database(st.session_state["db_opb"])
                         st.session_state["target_focus_id"] = None
                         st.toast("✅ Persetujuan BM dicatat!", icon="👍")
                         st.rerun()
@@ -1377,6 +1282,8 @@ else:
                             "Finance memverifikasi ketersediaan budget IOM.",
                             digital_sig=sig_fin,
                         )
+
+                        save_database(st.session_state["db_opb"])
                         st.session_state["target_focus_id"] = None
                         st.toast("💰 Budget Disetujui!", icon="✅")
                         st.rerun()
@@ -1391,6 +1298,8 @@ else:
                         catat_log(
                             item, f"Finance meminta revisi budget: {catatan}"
                         )
+
+                        save_database(st.session_state["db_opb"])
                         st.session_state["target_focus_id"] = None
                         st.toast("⚠️ Permintaan Revisi dikirim!", icon="🔄")
                         st.rerun()
@@ -1447,6 +1356,8 @@ else:
                             "P3SRS menyetujui IOM Final. Memerintahkan Purchasing melakukan pembelian & serah terima ke Engineering.",
                             digital_sig=sig_p3srs,
                         )
+
+                        save_database(st.session_state["db_opb"])
                         st.session_state["target_focus_id"] = None
                         st.toast("🎉 IOM Disetujui P3SRS!", icon="✅")
                         st.rerun()
@@ -1462,6 +1373,8 @@ else:
                             item,
                             f"P3SRS menolak/meminta revisi IOM: {catatan}",
                         )
+
+                        save_database(st.session_state["db_opb"])
                         st.session_state["target_focus_id"] = None
                         st.toast(
                             "⚠️ Revisi Dikirim ke Purchasing!", icon="🔄"
