@@ -20,13 +20,9 @@ st.set_page_config(
 )
 
 # --- 2. KONFIGURASI SUPABASE ---
-# ⚠️ GANTI NILAI DI BAWAH INI DENGAN URL & ANON KEY DARI DASHBOARD SUPABASE KAMU!
-SUPABASE_URL = st.secrets.get(
-    "SUPABASE_URL", "https://id-project-kamu.supabase.co"
-)
-SUPABASE_KEY = st.secrets.get(
-    "SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-)
+# Mengambil kredensial dari Streamlit Secrets atau Environment Variable
+SUPABASE_URL = st.secrets.get("SUPABASE_URL", os.getenv("SUPABASE_URL", "https://id-project-kamu.supabase.co"))
+SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", os.getenv("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."))
 
 
 @st.cache_resource
@@ -38,7 +34,7 @@ try:
     supabase = init_supabase()
 except Exception as e:
     st.error(
-        f"Gagal terhubung ke Supabase. Pastikan URL dan Key sudah benar. Error: {e}"
+        f"Gagal terhubung ke Supabase. Pastikan URL dan Key sudah benar di Streamlit Secrets. Error: {e}"
     )
 
 
@@ -75,11 +71,11 @@ def load_database():
 
 
 def save_single_item(item):
-    """Menyimpan atau memperbarui 1 data ke Supabase (Sinkron Real-time)."""
+    """Menyimpan atau memperbarui 1 data ke Supabase (Sinkron Real-time antar-device)."""
     try:
         item_copy = item.copy()
 
-        # Konversi bytes ke base64 string agar bisa disimpan di Cloud JSON
+        # Konversi bytes ke base64 string agar bisa disimpan di Cloud
         if item_copy.get("file_opb_bytes"):
             item_copy["file_opb_b64"] = base64.b64encode(
                 item_copy["file_opb_bytes"]
@@ -464,6 +460,12 @@ else:
     user_info = st.session_state["user_info"]
     role = user_info["role"]
 
+    # Tombol Refresh Data Manual dari Cloud
+    if st.sidebar.button("🔄 Refresh Data Cloud", use_container_width=True):
+        st.session_state["db_opb"] = load_database()
+        st.toast("Data terbaru berhasil disinkronkan dari Supabase!", icon="🔄")
+        st.rerun()
+
     pending_tasks = cek_notifikasi_user(role)
     if pending_tasks and not st.session_state["notif_shown"]:
         st.toast(
@@ -844,6 +846,7 @@ else:
                         )
 
                         save_single_item(data_baru)
+                        st.session_state["db_opb"] = load_database()
 
                         st.toast(
                             "🚀 OPB Berhasil diteruskan ke Purchasing!",
@@ -909,6 +912,7 @@ else:
                         )
 
                         save_single_item(item)
+                        st.session_state["db_opb"] = load_database()
 
                         st.session_state["target_focus_id"] = None
                         st.toast(
@@ -993,6 +997,7 @@ else:
                         )
 
                         save_single_item(item)
+                        st.session_state["db_opb"] = load_database()
                         st.session_state["target_focus_id"] = None
                         st.toast("📩 Berhasil dikirim ke BM!", icon="✅")
                         st.rerun()
@@ -1068,6 +1073,7 @@ else:
                             )
 
                             save_single_item(item)
+                            st.session_state["db_opb"] = load_database()
                             st.session_state["target_focus_id"] = None
                             st.toast(
                                 "📩 Draft IOM Dikirim ke Finance!", icon="✅"
@@ -1149,6 +1155,7 @@ else:
                         )
 
                         save_single_item(item)
+                        st.session_state["db_opb"] = load_database()
                         st.session_state["target_focus_id"] = None
                         st.toast(
                             "📦 Barang & BAST berhasil diserahkan ke Engineering!",
@@ -1220,6 +1227,7 @@ else:
                             )
 
                             save_single_item(item)
+                            st.session_state["db_opb"] = load_database()
                             st.session_state["target_focus_id"] = None
                             st.toast("✅ OPB Disetujui!", icon="👍")
                             st.rerun()
@@ -1236,6 +1244,7 @@ else:
                             )
 
                             save_single_item(item)
+                            st.session_state["db_opb"] = load_database()
                             st.session_state["target_focus_id"] = None
                             st.toast(
                                 "⚠️ Diminta Revisi ke Purchasing", icon="🔄"
@@ -1290,6 +1299,7 @@ else:
                         )
 
                         save_single_item(item)
+                        st.session_state["db_opb"] = load_database()
                         st.session_state["target_focus_id"] = None
                         st.toast("✅ Persetujuan BM dicatat!", icon="👍")
                         st.rerun()
@@ -1350,6 +1360,7 @@ else:
                         )
 
                         save_single_item(item)
+                        st.session_state["db_opb"] = load_database()
                         st.session_state["target_focus_id"] = None
                         st.toast("💰 Budget Disetujui!", icon="✅")
                         st.rerun()
@@ -1366,6 +1377,7 @@ else:
                         )
 
                         save_single_item(item)
+                        st.session_state["db_opb"] = load_database()
                         st.session_state["target_focus_id"] = None
                         st.toast("⚠️ Permintaan Revisi dikirim!", icon="🔄")
                         st.rerun()
@@ -1426,6 +1438,7 @@ else:
                         )
 
                         save_single_item(item)
+                        st.session_state["db_opb"] = load_database()
                         st.session_state["target_focus_id"] = None
                         st.toast("🎉 IOM Disetujui P3SRS!", icon="✅")
                         st.rerun()
@@ -1443,6 +1456,7 @@ else:
                         )
 
                         save_single_item(item)
+                        st.session_state["db_opb"] = load_database()
                         st.session_state["target_focus_id"] = None
                         st.toast(
                             "⚠️ Revisi Dikirim ke Purchasing!", icon="🔄"
