@@ -19,10 +19,10 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# --- 2. KONFIGURASI SUPABASE (Ganti dengan kredensial Supabase kamu) ---
-# Kamu bisa menyimpan kredensial ini di .streamlit/secrets.toml atau langsung di bawah ini
+# --- 2. KONFIGURASI SUPABASE ---
+# ⚠️ GANTI NILAI DI BAWAH INI DENGAN URL & ANON KEY DARI DASHBOARD SUPABASE KAMU!
 SUPABASE_URL = st.secrets.get(
-    "SUPABASE_URL", "https://xxxxxxxxxxxxxx.supabase.co"
+    "SUPABASE_URL", "https://id-project-kamu.supabase.co"
 )
 SUPABASE_KEY = st.secrets.get(
     "SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
@@ -389,7 +389,6 @@ def cek_notifikasi_user(role):
 
 
 # --- 7. INITIALIZATION SESSION STATE BERBASIS SUPABASE CLOUD ---
-# Membaca data terbaru langsung dari Cloud Supabase setiap kali render
 st.session_state["db_opb"] = load_database()
 
 if "logged_in" not in st.session_state:
@@ -844,7 +843,6 @@ else:
                             digital_sig=sig_eng,
                         )
 
-                        # SIMPAN PERMANEN KE CLOUD DATABASE SUPABASE
                         save_single_item(data_baru)
 
                         st.toast(
@@ -910,7 +908,6 @@ else:
                             digital_sig=sig_rcv,
                         )
 
-                        # UPDATE SUPABASE
                         save_single_item(item)
 
                         st.session_state["target_focus_id"] = None
@@ -958,7 +955,6 @@ else:
                     st.markdown("📄 **Tinjau Dokumen OPB dari Engineering:**")
                     render_download_buttons(item, key_prefix="pur_tab1")
 
-                    # Menggunakan .get() agar aman dari KeyError
                     if item.get("catatan_bm", "-") != "-":
                         st.error(
                             f"Catatan Revisi BM: {item.get('catatan_bm')}"
