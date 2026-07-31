@@ -1,3 +1,5 @@
+import base64
+import hashlib
 import os
 from datetime import datetime
 import pandas as pd
@@ -5,6 +7,7 @@ import plotly.express as px
 import pytz
 import requests
 import streamlit as st
+import streamlit.components.v1 as components
 
 # --- 1. KONFIGURASI HALAMAN ---
 st.set_page_config(
@@ -26,7 +29,7 @@ def load_lottieurl(url: str):
         return None
 
 
-# --- 3. ADVANCED CUSTOM CSS (PREMIUM LUXURY DESIGN & ELEGAN TIMELINE) ---
+# --- 3. ADVANCED CUSTOM CSS & ANIMATED TIMELINE ---
 st.markdown(
     """
     <style>
@@ -138,61 +141,100 @@ st.markdown(
         margin-bottom: 20px;
     }
     
-    /* ================= ELEGAN TIMELINE DESIGN ================= */
+    /* ================= KEYFRAME ANIMATED TIMELINE ================= */
+    @keyframes slideInUp {
+        0% {
+            opacity: 0;
+            transform: translateY(18px);
+        }
+        100% {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @keyframes pulseGlow {
+        0% {
+            box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.5);
+        }
+        70% {
+            box-shadow: 0 0 0 8px rgba(99, 102, 241, 0);
+        }
+        100% {
+            box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
+        }
+    }
+
     .timeline-container {
         position: relative;
-        padding-left: 20px;
-        margin: 15px 0 10px 10px;
-        border-left: 2px dashed #cbd5e1;
+        padding-left: 24px;
+        margin: 20px 0 10px 10px;
+        border-left: 3px solid #e2e8f0;
     }
     
     .timeline-card {
         position: relative;
-        background: #f8fafc;
+        background: #ffffff;
         border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        padding: 12px 16px;
-        margin-bottom: 14px;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.02);
-        transition: all 0.2s ease;
+        border-radius: 14px;
+        padding: 14px 18px;
+        margin-bottom: 16px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+        animation: slideInUp 0.4s ease-out forwards;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
     
     .timeline-card:hover {
-        background: #ffffff;
-        border-color: #cbd5e1;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        transform: translateX(5px);
+        border-color: #818cf8;
+        box-shadow: 0 8px 20px rgba(99, 102, 241, 0.12);
     }
     
     .timeline-card::before {
         content: '';
         position: absolute;
-        left: -28px;
-        top: 16px;
-        width: 13px;
-        height: 13px;
+        left: -32px;
+        top: 18px;
+        width: 14px;
+        height: 14px;
         border-radius: 50%;
         background-color: #6366f1;
         border: 3px solid #ffffff;
-        box-shadow: 0 0 0 2px #6366f1;
+        animation: pulseGlow 2s infinite;
     }
     
     .timeline-time {
-        display: inline-block;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
         background: #e0e7ff;
         color: #3730a3;
         font-size: 11px;
         font-weight: 700;
-        padding: 2px 8px;
+        padding: 3px 10px;
         border-radius: 12px;
-        margin-bottom: 6px;
+        margin-bottom: 8px;
     }
     
     .timeline-desc {
-        color: #1e293b;
-        font-size: 13px;
+        color: #0f172a;
+        font-size: 13.5px;
         font-weight: 500;
-        line-height: 1.4;
+        line-height: 1.5;
         margin: 0;
+    }
+
+    /* Badge Tanda Tangan Digital */
+    .digital-signature-badge {
+        display: inline-block;
+        background: #ecfdf5;
+        border: 1px dashed #10b981;
+        color: #047857;
+        font-size: 11px;
+        padding: 4px 8px;
+        border-radius: 6px;
+        margin-top: 6px;
+        font-family: monospace;
     }
     </style>
 """,
@@ -229,7 +271,20 @@ USERS = {
 }
 
 
-# --- 5. FUNGSI SIMPAN FILE & HELPER DOWNLOAD ---
+# --- 5. FUNGSI SIMPAN FILE, LOG, DAN TANDA TANGAN DIGITAL ---
+def generate_digital_signature(user_role, user_name, doc_id):
+    wib = pytz.timezone("Asia/Jakarta")
+    waktu = datetime.now(wib).strftime("%Y-%m-%d %H:%M:%S")
+    raw_data = f"{doc_id}-{user_role}-{user_name}-{waktu}"
+    sig_hash = hashlib.sha256(raw_data.encode()).hexdigest()[:12].upper()
+    return {
+        "signed_by": user_name,
+        "role": user_role,
+        "timestamp": waktu,
+        "hash": f"DS-P3SRS-{sig_hash}",
+    }
+
+
 def upload_to_google_drive(file_name, file_bytes, mime_type, folder_id):
     try:
         upload_dir = os.path.join(os.getcwd(), "uploads")
@@ -246,15 +301,18 @@ def upload_to_google_drive(file_name, file_bytes, mime_type, folder_id):
         return None
 
 
-def catat_log(item, pesan):
+def catat_log(item, pesan, digital_sig=None):
     wib = pytz.timezone("Asia/Jakarta")
     waktu_sekarang = datetime.now(wib).strftime("%d/%m/%Y %H:%M:%S")
-    item["timeline"].append({"waktu": waktu_sekarang, "pesan": pesan})
+    log_entry = {"waktu": waktu_sekarang, "pesan": pesan}
+    if digital_sig:
+        log_entry["signature"] = digital_sig
+    item["timeline"].append(log_entry)
 
 
 def render_download_buttons(item, key_prefix="dl"):
-    """Fungsi pembantu untuk menampilkan tombol download OPB dan IOM secara seragam."""
-    col1, col2 = st.columns(2)
+    """Fungsi pembantu untuk menampilkan tombol download OPB, IOM, dan Dokumen BAST."""
+    col1, col2, col3 = st.columns(3)
     with col1:
         if item.get("file_opb_bytes"):
             st.download_button(
@@ -266,10 +324,9 @@ def render_download_buttons(item, key_prefix="dl"):
                 use_container_width=True,
             )
         else:
-            # Fallback jika dibuat via data awal tanpa binary upload
             resume_text = f"RESUME DOKUMEN OPB\nNomor: {item['nomor_opb']}\nNama Barang: {item['nama_barang']}\nJumlah: {item['jumlah']}\nKeterangan: {item['keterangan']}"
             st.download_button(
-                label=f"📄 Download Draft OPB ({item['nomor_opb'].replace('/', '_')}.txt)",
+                label=f"📄 Draft OPB ({item['nomor_opb'].replace('/', '_')}.txt)",
                 data=resume_text.encode("utf-8"),
                 file_name=f"{item['nomor_opb'].replace('/', '_')}.txt",
                 mime="text/plain",
@@ -290,6 +347,64 @@ def render_download_buttons(item, key_prefix="dl"):
         else:
             st.info("ℹ️ File IOM Belum Diunggah")
 
+    with col3:
+        if item.get("file_bast_bytes"):
+            st.download_button(
+                label=f"📦 Download BAST ({item.get('file_bast_name', 'BAST.pdf')})",
+                data=item["file_bast_bytes"],
+                file_name=item.get("file_bast_name", "BAST_Penerimaan.pdf"),
+                mime="application/octet-stream",
+                key=f"{key_prefix}_bast_{item['id']}",
+                use_container_width=True,
+            )
+        else:
+            st.caption("ℹ️ BAST Belum Diunggah")
+
+
+def render_signature_pad(key_id):
+    """Komponen HTML5 Canvas Interaktif untuk Tanda Tangan Digital."""
+    canvas_html = f"""
+    <div style="border:1px dashed #6366f1; padding:10px; border-radius:10px; background:#f8fafc; text-align:center;">
+        <label style="font-size:12px; font-weight:bold; color:#3730a3; display:block; margin-bottom:5px;">
+            ✍️ Goreskan Tanda Tangan Digital Anda Pada Area Di Bawah Ini:
+        </label>
+        <canvas id="sigCanvas_{key_id}" width="380" height="130" style="border:1px solid #cbd5e1; border-radius:8px; background:#ffffff; cursor:crosshair;"></canvas>
+        <br>
+        <button onclick="clearCanvas_{key_id}()" style="margin-top:5px; background:#f1f5f9; border:1px solid #cbd5e1; padding:3px 10px; border-radius:6px; font-size:11px; cursor:pointer;">
+            🗑️ Bersihkan Canvas
+        </button>
+    </div>
+    <script>
+        var canvas_{key_id} = document.getElementById('sigCanvas_{key_id}');
+        var ctx_{key_id} = canvas_{key_id}.getContext('2d');
+        var drawing_{key_id} = false;
+
+        function getPos(e) {{
+            var rect = canvas_{key_id}.getBoundingClientRect();
+            return {{
+                x: (e.clientX || e.touches[0].clientX) - rect.left,
+                y: (e.clientY || e.touches[0].clientY) - rect.top
+            }};
+        }}
+
+        function startDraw(e) {{ drawing_{key_id} = true; ctx_{key_id}.beginPath(); var pos = getPos(e); ctx_{key_id}.moveTo(pos.x, pos.y); }}
+        function moveDraw(e) {{ if (!drawing_{key_id}) return; var pos = getPos(e); ctx_{key_id}.lineTo(pos.x, pos.y); ctx_{key_id}.strokeStyle = '#1e1b4b'; ctx_{key_id}.lineWidth = 2; ctx_{key_id}.stroke(); }}
+        function stopDraw() {{ drawing_{key_id} = false; }}
+
+        canvas_{key_id}.addEventListener('mousedown', startDraw);
+        canvas_{key_id}.addEventListener('mousemove', moveDraw);
+        canvas_{key_id}.addEventListener('mouseup', stopDraw);
+        canvas_{key_id}.addEventListener('touchstart', startDraw);
+        canvas_{key_id}.addEventListener('touchmove', moveDraw);
+        canvas_{key_id}.addEventListener('touchend', stopDraw);
+
+        function clearCanvas_{key_id}() {{
+            ctx_{key_id}.clearRect(0, 0, canvas_{key_id}.width, canvas_{key_id}.height);
+        }}
+    </script>
+    """
+    components.html(canvas_html, height=190)
+
 
 # --- 6. FUNGSI CEK NOTIFIKASI PER DIVISI ---
 def cek_notifikasi_user(role):
@@ -304,7 +419,7 @@ def cek_notifikasi_user(role):
             in [
                 "1. Penawaran Purchasing",
                 "3. Pembuatan IOM (Purchasing)",
-                "6. Pembelian Barang (Purchasing)",
+                "6. Serah Terima Barang (Purchasing -> Engineering)",
                 "Revisi BM (OPB)",
                 "Revisi Finance",
                 "Revisi BM/P3SRS (IOM)",
@@ -325,7 +440,9 @@ def cek_notifikasi_user(role):
         ]
     elif role == "Engineering":
         pending_items = [
-            x for x in db if x["status"] == "7. Penerimaan Barang (Engineering)"
+            x
+            for x in db
+            if x["status"] == "7. Verifikasi Penerimaan Barang (Engineering)"
         ]
 
     return pending_items
@@ -366,7 +483,7 @@ if not st.session_state["logged_in"]:
             """
             <div style='text-align: center; margin-bottom: 20px;'>
                 <h2 style='color: #1e1b4b; font-weight: 800; margin: 0; font-size: 28px;'>Portal OPB & IOM - P3SRS</h2>
-                <p style='color: #64748b; font-size: 14px; margin-top: 5px;'>Sistem Management Permintaan Barang Inter-Divisi P3SRS</p>
+                <p style='color: #64748b; font-size: 14px; margin-top: 5px;'>Sistem Digitalisasi OPB, IOM & Serah Terima Barang Inter-Divisi</p>
             </div>
         """,
             unsafe_allow_html=True,
@@ -398,7 +515,7 @@ if not st.session_state["logged_in"]:
                 else:
                     st.error("❌ Username atau Password tidak sesuai!")
 
-        with st.expander("ℹ️ Daftar Akun Login Skenario"):
+        with st.expander("ℹ️ Daftar Akun Login"):
             st.markdown("""
             - **Engineering**: `engineering` / `eng123`
             - **Purchasing**: `purchasing` / `pur123`
@@ -449,7 +566,7 @@ else:
         f"""
         <div class="main-header">
             <h1>📋 Sistem Pengajuan OPB & IOM - P3SRS</h1>
-            <p>Platform Integrasi Workflow Order Permintaan Barang & Inter-Office Memo | Hak Akses: <b>{role}</b></p>
+            <p>Platform Integrasi OPB, IOM & Digital Signature Handover | Hak Akses: <b>{role}</b></p>
         </div>
     """,
         unsafe_allow_html=True,
@@ -465,7 +582,7 @@ else:
                     <span style="font-size: 16px; font-weight: 700;">Notifikasi Tugas Masuk ({len(pending_tasks)} Berkas)</span>
                 </div>
                 <div style="font-size: 13px; margin-bottom: 12px; opacity: 0.9;">
-                    Klik tombol di bawah ini untuk langsung menuju dan membuka berkas pekerjaan terkait:
+                    Klik tombol di bawah ini untuk langsung menuju berkas pekerjaan terkait:
                 </div>
             </div>
         """,
@@ -499,8 +616,8 @@ else:
         "3. Pembuatan IOM (Purchasing)",
         "4. Review Finance",
         "5. Approval Akhir (BM & P3SRS)",
-        "6. Pembelian Barang (Purchasing)",
-        "7. Penerimaan Barang (Engineering)",
+        "6. Serah Terima Barang (Purchasing -> Engineering)",
+        "7. Verifikasi Penerimaan Barang (Engineering)",
         "8. Selesai",
     ]
 
@@ -544,7 +661,7 @@ else:
                 <div class="kpi-card kpi-emerald">
                     <div class="kpi-title">Selesai (Completed)</div>
                     <div class="kpi-value" style="color:#059669;">{total_selesai} <span style="font-size:15px; color:#64748b;">OPB</span></div>
-                    <div class="kpi-sub" style="color:#059669;">✅ Barang Diterima</div>
+                    <div class="kpi-sub" style="color:#059669;">✅ Handover Verified</div>
                 </div>
             """,
                 unsafe_allow_html=True,
@@ -566,12 +683,14 @@ else:
 
         col_dash1, col_dash2 = st.columns([1.3, 1])
 
-        # PROGRESS WORKFLOW & ELEGAN TIMELINE DISPLAY
+        # PROGRESS WORKFLOW & ANIMATED TIMELINE DISPLAY
         with col_dash1:
             st.markdown(
                 "<div class='content-box'>", unsafe_allow_html=True
             )
-            st.markdown("##### 📌 Progress Live Status & Timeline Berkas")
+            st.markdown(
+                "##### 📌 Progress Live Status & Animasi Timeline Berkas"
+            )
             st.markdown("<br>", unsafe_allow_html=True)
             for idx, item in enumerate(st.session_state["db_opb"]):
                 status_curr = item["status"]
@@ -599,13 +718,13 @@ else:
                     f"📍 Status: `{status_curr}` | 💰 Est: Rp {item['harga_estimasi']:,}"
                 )
 
-                # ================= UNDUH BERKAS UNTUK SELURUH PERAN DARI DASHBOARD =================
-                st.markdown("📂 **Unduh Lampiran Berkas OPB / IOM:**")
+                # UNDUH BERKAS UNTUK SELURUH PERAN DARI DASHBOARD
+                st.markdown("📂 **Unduh Lampiran Berkas OPB / IOM / BAST:**")
                 render_download_buttons(item, key_prefix=f"dash_{idx}")
 
-                # ================= ELEGAN VISUAL TIMELINE DESIGN =================
+                # ELEGAN VISUAL ANIMATED TIMELINE DESIGN
                 with st.expander(
-                    f"📜 Timeline & Jejak Berkas ({len(item['timeline'])} Aktivitas)"
+                    f"📜 Timeline & Jejak Verifikasi Tanda Tangan ({len(item['timeline'])} Aktivitas)"
                 ):
                     if item["timeline"]:
                         st.markdown(
@@ -616,15 +735,25 @@ else:
                             if isinstance(log_entry, dict):
                                 waktu_log = log_entry.get("waktu", "")
                                 pesan_log = log_entry.get("pesan", "")
+                                sig = log_entry.get("signature", None)
                             else:
                                 waktu_log = "Log"
                                 pesan_log = str(log_entry)
+                                sig = None
+
+                            sig_badge_html = ""
+                            if sig:
+                                sig_badge_html = f"""
+                                <br><span class="digital-signature-badge">
+                                    🔏 Signed digitally by <b>{sig['signed_by']}</b> ({sig['role']}) | {sig['hash']}
+                                </span>
+                                """
 
                             st.markdown(
                                 f"""
                                 <div class="timeline-card">
                                     <span class="timeline-time">⏱️ {waktu_log}</span>
-                                    <p class="timeline-desc">{pesan_log}</p>
+                                    <p class="timeline-desc">{pesan_log}{sig_badge_html}</p>
                                 </div>
                             """,
                                 unsafe_allow_html=True,
@@ -692,7 +821,10 @@ else:
     if role == "Engineering":
         st.header("🔧 Panel Kerja Engineering")
         tab1, tab2 = st.tabs(
-            ["📝 Buat Form OPB Baru", "📦 Konfirmasi Penerimaan Barang"]
+            [
+                "📝 Buat Form OPB Baru",
+                "📦 Verifikasi & Tanda Tangan Penerimaan Barang (BAST)",
+            ]
         )
 
         with tab1:
@@ -740,6 +872,9 @@ else:
                             "Engineering",
                         )
                         if link:
+                            sig_eng = generate_digital_signature(
+                                "Engineering", user_info["name"], nomor_opb
+                            )
                             data_baru = {
                                 "id": len(st.session_state["db_opb"]) + 1,
                                 "nomor_opb": nomor_opb,
@@ -754,6 +889,8 @@ else:
                                 "link_iom": "-",
                                 "file_iom_bytes": None,
                                 "file_iom_name": "-",
+                                "file_bast_bytes": None,
+                                "file_bast_name": "-",
                                 "catatan_bm": "-",
                                 "catatan_finance": "-",
                                 "catatan_p3srs": "-",
@@ -762,7 +899,8 @@ else:
                             }
                             catat_log(
                                 data_baru,
-                                "OPB Dibuat & Diajukan oleh Engineering ke Purchasing",
+                                f"OPB Dibuat & Diajukan oleh {user_info['name']} ke Purchasing",
+                                digital_sig=sig_eng,
                             )
                             st.session_state["db_opb"].append(data_baru)
                             st.toast(
@@ -780,11 +918,14 @@ else:
             st.markdown(
                 "<div class='content-box'>", unsafe_allow_html=True
             )
-            st.subheader("Barang Siap Diterima di Lapangan")
+            st.subheader(
+                "📦 Serah Terima Barang Masuk dari Purchasing (Penerimaan)"
+            )
             items = [
                 x
                 for x in st.session_state["db_opb"]
-                if x["status"] == "7. Penerimaan Barang (Engineering)"
+                if x["status"]
+                == "7. Verifikasi Penerimaan Barang (Engineering)"
             ]
             if not items:
                 st.info(
@@ -800,22 +941,33 @@ else:
                 ):
                     st.write(f"**Jumlah:** {item['jumlah']}")
                     st.write(f"**Vendor:** {item['vendor']}")
-                    st.markdown("📂 **Tinjau Dokumen:**")
+                    st.markdown("📂 **Tinjau Berkas & BAST dari Purchasing:**")
                     render_download_buttons(item, key_prefix="eng_tab2")
                     st.markdown("<br>", unsafe_allow_html=True)
 
+                    st.markdown("##### ✍️ Pad Tanda Tangan Digital Penerima")
+                    render_signature_pad(f"eng_rcv_{item['id']}")
+
+                    st.markdown("<br>", unsafe_allow_html=True)
                     if st.button(
-                        f"✅ Konfirmasi Barang Sudah Diterima #{item['id']}",
+                        f"✅ Konfirmasi & Tanda Tangan Penerimaan BAST #{item['id']}",
                         type="primary",
+                        use_container_width=True,
                     ):
+                        sig_rcv = generate_digital_signature(
+                            "Engineering (Penerima)",
+                            user_info["name"],
+                            item["nomor_opb"],
+                        )
                         item["status"] = "8. Selesai"
                         catat_log(
                             item,
-                            "Barang telah diterima oleh Engineering. Workflow SELESAI.",
+                            f"Barang telah diverifikasi fisik dan diterima oleh {user_info['name']} (Engineering). BAST Ditandatangani.",
+                            digital_sig=sig_rcv,
                         )
                         st.session_state["target_focus_id"] = None
                         st.toast(
-                            "✅ Barang Diterima! Status OPB Selesai.", icon="🎉"
+                            "✅ Berita Acara Serah Terima Selesai!", icon="🎉"
                         )
                         st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
@@ -827,7 +979,7 @@ else:
             [
                 "1. Input Penawaran Harga",
                 "2. Buat & Unggah IOM",
-                "3. Eksekusi Pembelian",
+                "3. Serah Terima Barang ke Engineering",
             ]
         )
 
@@ -876,12 +1028,16 @@ else:
                         key=f"btn_p1_{item['id']}",
                         type="primary",
                     ):
+                        sig_pur = generate_digital_signature(
+                            "Purchasing", user_info["name"], item["nomor_opb"]
+                        )
                         item["vendor"] = vendor
                         item["harga_estimasi"] = harga
                         item["status"] = "2. Review BM"
                         catat_log(
                             item,
                             f"Purchasing menentukan vendor ({vendor}) & estimasi harga (Rp {harga:,}). Dikirim ke BM.",
+                            digital_sig=sig_pur,
                         )
                         st.session_state["target_focus_id"] = None
                         st.toast("📩 Berhasil dikirim ke BM!", icon="✅")
@@ -939,6 +1095,11 @@ else:
                                 file_iom.type,
                                 "Purchasing",
                             )
+                            sig_pur_iom = generate_digital_signature(
+                                "Purchasing (IOM Draft)",
+                                user_info["name"],
+                                item["nomor_opb"],
+                            )
                             item["link_iom"] = link
                             item["file_iom_bytes"] = iom_bytes
                             item["file_iom_name"] = iom_name
@@ -946,6 +1107,7 @@ else:
                             catat_log(
                                 item,
                                 "Purchasing mengunggah draft IOM dan meneruskan ke Finance.",
+                                digital_sig=sig_pur_iom,
                             )
                             st.session_state["target_focus_id"] = None
                             st.toast(
@@ -960,14 +1122,20 @@ else:
             st.markdown(
                 "<div class='content-box'>", unsafe_allow_html=True
             )
-            st.subheader("IOM Fully Approved -> Eksekusi Pembelian")
+            st.subheader(
+                "🤝 Serah Terima Barang & Upload BAST ke Engineering"
+            )
             items = [
                 x
                 for x in st.session_state["db_opb"]
-                if x["status"] == "6. Pembelian Barang (Purchasing)"
+                if x["status"]
+                in [
+                    "6. Pembelian Barang (Purchasing)",
+                    "6. Serah Terima Barang (Purchasing -> Engineering)",
+                ]
             ]
             if not items:
-                st.info("Belum ada barang yang perlu dibeli saat ini.")
+                st.info("Belum ada barang yang perlu diserahterimakan.")
             for item in items:
                 is_expanded = (
                     st.session_state["target_focus_id"] == item["id"]
@@ -983,18 +1151,46 @@ else:
                     render_download_buttons(item, key_prefix="pur_tab3")
 
                     st.divider()
+                    st.markdown(
+                        "##### 📄 Upload Dokumen BAST / Foto Fisik Serah Terima Barang"
+                    )
+                    file_bast = st.file_uploader(
+                        "Unggah Berita Acara Serah Terima (BAST)",
+                        type=["pdf", "jpg", "png"],
+                        key=f"bast_file_{item['id']}",
+                    )
+
+                    st.markdown("##### ✍️ Pad Tanda Tangan Penyerah (Purchasing)")
+                    render_signature_pad(f"pur_bast_{item['id']}")
+
                     if st.button(
-                        "Barang Sudah Dibelikan (Kirim ke Engineering)",
+                        "🚚 Serahkan Barang & BAST ke Engineering",
                         key=f"btn_p3_{item['id']}",
                         type="primary",
+                        use_container_width=True,
                     ):
-                        item["status"] = "7. Penerimaan Barang (Engineering)"
+                        if file_bast:
+                            bast_bytes = file_bast.getvalue()
+                            bast_name = file_bast.name
+                            item["file_bast_bytes"] = bast_bytes
+                            item["file_bast_name"] = bast_name
+
+                        sig_handover = generate_digital_signature(
+                            "Purchasing (Penyerah)",
+                            user_info["name"],
+                            item["nomor_opb"],
+                        )
+                        item[
+                            "status"
+                        ] = "7. Verifikasi Penerimaan Barang (Engineering)"
                         catat_log(
-                            item, "Purchasing melakukan eksekusi pembelian barang."
+                            item,
+                            f"Purchasing ({user_info['name']}) telah menyerahkan fisik barang & BAST ke Engineering.",
+                            digital_sig=sig_handover,
                         )
                         st.session_state["target_focus_id"] = None
                         st.toast(
-                            "📦 Barang dibeli & dikirim ke Engineering!",
+                            "📦 Barang & BAST berhasil diserahkan ke Engineering!",
                             icon="🚚",
                         )
                         st.rerun()
@@ -1034,6 +1230,9 @@ else:
                     render_download_buttons(item, key_prefix="bm_tab1")
 
                     st.divider()
+                    st.markdown("##### ✍️ Pad Tanda Tangan Digital BM")
+                    render_signature_pad(f"bm1_sig_{item['id']}")
+
                     catatan = st.text_input(
                         "Catatan / Alasan jika Minta Revisi",
                         key=f"c_bm1_{item['id']}",
@@ -1042,21 +1241,30 @@ else:
                     col1, col2 = st.columns(2)
                     with col1:
                         if st.button(
-                            "✅ Setujui OPB",
+                            "✅ Setujui & Tanda Tangan OPB",
                             key=f"app_bm1_{item['id']}",
                             type="primary",
+                            use_container_width=True,
                         ):
+                            sig_bm = generate_digital_signature(
+                                "Building Manager",
+                                user_info["name"],
+                                item["nomor_opb"],
+                            )
                             item["status"] = "3. Pembuatan IOM (Purchasing)"
                             catat_log(
                                 item,
                                 "BM menyetujui OPB. Meneruskan ke Purchasing untuk buat IOM.",
+                                digital_sig=sig_bm,
                             )
                             st.session_state["target_focus_id"] = None
                             st.toast("✅ OPB Disetujui!", icon="👍")
                             st.rerun()
                     with col2:
                         if st.button(
-                            "❌ Tolak / Minta Revisi", key=f"rej_bm1_{item['id']}"
+                            "❌ Tolak / Minta Revisi",
+                            key=f"rej_bm1_{item['id']}",
+                            use_container_width=True,
                         ):
                             item["catatan_bm"] = catatan
                             item["status"] = "Revisi BM (OPB)"
@@ -1096,14 +1304,28 @@ else:
                     render_download_buttons(item, key_prefix="bm_tab2")
 
                     st.divider()
+                    st.markdown("##### ✍️ Pad Tanda Tangan Digital BM")
+                    render_signature_pad(f"bm2_sig_{item['id']}")
+
                     if st.button(
-                        "✅ Approve IOM (BM)",
+                        "✅ Approve & Tanda Tangan IOM Final (BM)",
                         key=f"app_bm2_{item['id']}",
                         type="primary",
+                        use_container_width=True,
                     ):
-                        catat_log(item, "BM menyetujui IOM Final.")
+                        sig_bm_iom = generate_digital_signature(
+                            "Building Manager (IOM Final)",
+                            user_info["name"],
+                            item["nomor_opb"],
+                        )
+                        catat_log(
+                            item,
+                            "BM menyetujui IOM Final.",
+                            digital_sig=sig_bm_iom,
+                        )
                         st.session_state["target_focus_id"] = None
                         st.toast("✅ Persetujuan BM dicatat!", icon="👍")
+                        st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
 
     # 4. ROLE FINANCE
@@ -1131,6 +1353,9 @@ else:
                 render_download_buttons(item, key_prefix="fin_panel")
 
                 st.divider()
+                st.markdown("##### ✍️ Pad Tanda Tangan Digital Finance")
+                render_signature_pad(f"fin_sig_{item['id']}")
+
                 catatan = st.text_input(
                     "Catatan Verifikasi Anggaran", key=f"c_fin_{item['id']}"
                 )
@@ -1138,21 +1363,28 @@ else:
                 col1, col2 = st.columns(2)
                 with col1:
                     if st.button(
-                        "✅ Verifikasi Budget OK",
+                        "✅ Verifikasi Budget & Tanda Tangan",
                         key=f"app_fin_{item['id']}",
                         type="primary",
+                        use_container_width=True,
                     ):
+                        sig_fin = generate_digital_signature(
+                            "Finance Officer", user_info["name"], item["nomor_opb"]
+                        )
                         item["status"] = "5. Approval Akhir (BM & P3SRS)"
                         catat_log(
                             item,
                             "Finance memverifikasi ketersediaan budget IOM.",
+                            digital_sig=sig_fin,
                         )
                         st.session_state["target_focus_id"] = None
                         st.toast("💰 Budget Disetujui!", icon="✅")
                         st.rerun()
                 with col2:
                     if st.button(
-                        "❌ Minta Revisi Budget", key=f"rej_fin_{item['id']}"
+                        "❌ Minta Revisi Budget",
+                        key=f"rej_fin_{item['id']}",
+                        use_container_width=True,
                     ):
                         item["catatan_finance"] = catatan
                         item["status"] = "Revisi Finance"
@@ -1189,6 +1421,9 @@ else:
                 render_download_buttons(item, key_prefix="p3srs_panel")
 
                 st.divider()
+                st.markdown("##### ✍️ Pad Tanda Tangan Digital Pengurus P3SRS")
+                render_signature_pad(f"p3srs_sig_{item['id']}")
+
                 catatan = st.text_input(
                     "Catatan Persetujuan", key=f"c_p3srs_{item['id']}"
                 )
@@ -1196,21 +1431,30 @@ else:
                 col1, col2 = st.columns(2)
                 with col1:
                     if st.button(
-                        "✅ ACC & Instruksikan Pembelian",
+                        "✅ ACC, Tanda Tangan & Instruksikan Serah Terima",
                         key=f"app_p3srs_{item['id']}",
                         type="primary",
+                        use_container_width=True,
                     ):
-                        item["status"] = "6. Pembelian Barang (Purchasing)"
+                        sig_p3srs = generate_digital_signature(
+                            "Pengurus P3SRS", user_info["name"], item["nomor_opb"]
+                        )
+                        item[
+                            "status"
+                        ] = "6. Serah Terima Barang (Purchasing -> Engineering)"
                         catat_log(
                             item,
-                            "P3SRS menyetujui IOM Final. Memerintahkan Purchasing melakukan pembelian.",
+                            "P3SRS menyetujui IOM Final. Memerintahkan Purchasing melakukan pembelian & serah terima ke Engineering.",
+                            digital_sig=sig_p3srs,
                         )
                         st.session_state["target_focus_id"] = None
                         st.toast("🎉 IOM Disetujui P3SRS!", icon="✅")
                         st.rerun()
                 with col2:
                     if st.button(
-                        "❌ Minta Revisi", key=f"rej_p3srs_{item['id']}"
+                        "❌ Minta Revisi",
+                        key=f"rej_p3srs_{item['id']}",
+                        use_container_width=True,
                     ):
                         item["catatan_p3srs"] = catatan
                         item["status"] = "Revisi BM/P3SRS (IOM)"
