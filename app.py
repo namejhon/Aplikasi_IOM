@@ -9,6 +9,7 @@ import pytz
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
+from supabase import create_client, Client
 
 # --- 1. KONFIGURASI HALAMAN ---
 st.set_page_config(
@@ -18,69 +19,81 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-DB_FILE = "db_opb.json"
+# --- INISIALISASI SUPABASE CLIENT ---
+SUPABASE_URL = st.secrets.get("SUPABASE_URL", os.environ.get("SUPABASE_URL", ""))
+SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", os.environ.get("SUPABASE_KEY", ""))
 
+if not SUPABASE_URL or not SUPABASE_KEY:
+    st.error("⚠️ Supabase Credentials belum diatur di Secrets/Environment Variables!")
 
-# --- 2. FUNGSI PERSISTENSI DATA (JSON STORAGE) ---
-def load_database():
-    """Membaca database dari file JSON agar data tidak hilang saat refresh."""
-    if os.path.exists(DB_FILE):
-        try:
-            with open(DB_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                # Decode bytes jika sebelumnya disimpan dalam format base64
-                for item in data:
-                    if item.get("file_opb_b64"):
-                        item["file_opb_bytes"] = base64.b64decode(
-                            item["file_opb_b64"]
-                        )
-                    if item.get("file_iom_b64"):
-                        item["file_iom_bytes"] = base64.b64decode(
-                            item["file_iom_b64"]
-                        )
-                    if item.get("file_bast_b64"):
-                        item["file_bast_bytes"] = base64.b64decode(
-                            item["file_bast_b64"]
-                        )
-                return data
-        except Exception as e:
-            st.error(f"Gagal memuat database JSON: {e}")
-            return []
-    return []
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+BUCKET_NAME = "opb-files"
 
-
-def save_database(data):
-    """Menyimpan database session state ke file JSON lokal."""
+# --- 2. FUNGSI PERSISTENSI DATA (SUPABASE STORAGE & DB) ---
+def upload_file_to_supabase(file_bytes, file_name, folder="opb"):
+    """Mengunggah file ke Supabase Storage dan mengembalikan URL Publiknya."""
+    if not file_bytes:
+        return None
     try:
-        # Buat copy data agar tidak merusak objek memori Streamlit saat encode b64
-        data_to_save = []
-        for item in data:
-            item_copy = item.copy()
-
-            # Encode byte stream (PDF/File) ke string base64 agar aman disimpan di JSON
-            if item_copy.get("file_opb_bytes"):
-                item_copy["file_opb_b64"] = base64.b64encode(
-                    item_copy["file_opb_bytes"]
-                ).decode("utf-8")
-                del item_copy["file_opb_bytes"]
-            if item_copy.get("file_iom_bytes"):
-                item_copy["file_iom_b64"] = base64.b64encode(
-                    item_copy["file_iom_bytes"]
-                ).decode("utf-8")
-                del item_copy["file_iom_bytes"]
-            if item_copy.get("file_bast_bytes"):
-                item_copy["file_bast_b64"] = base64.b64encode(
-                    item_copy["file_bast_bytes"]
-                ).decode("utf-8")
-                del item_copy["file_bast_bytes"]
-
-            data_to_save.append(item_copy)
-
-        with open(DB_FILE, "w", encoding="utf-8") as f:
-            json.dump(data_to_save, f, indent=4, ensure_ascii=False)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_filename = f"{folder}/{timestamp}_{file_name.replace(' ', '_')}"
+        
+        # Upload byte file ke bucket Supabase
+        supabase.storage.from_(BUCKET_NAME).upload(
+            file=file_bytes,
+            path=safe_filename,
+            file_options={"content-type": "application/octet-stream"}
+        )
+        
+        # Ambil URL Publik
+        public_url = supabase.storage.from_(BUCKET_NAME).get_public_url(safe_filename)
+        return public_url
     except Exception as e:
-        st.error(f"Gagal menyimpan ke database JSON: {e}")
+        st.error(f"Gagal upload file ke Supabase Storage: {e}")
+        return None
 
+def load_database():
+    """Membaca seluruh data OPB dari tabel Supabase."""
+    try:
+        response = supabase.table("opb_data").select("*").order("id", desc=False).execute()
+        data = response.data
+        for item in data:
+            if isinstance(item.get("timeline"), str):
+                try:
+                    item["timeline"] = json.loads(item["timeline"])
+                except Exception:
+                    item["timeline"] = []
+            elif item.get("timeline") is None:
+                item["timeline"] = []
+        return data
+    except Exception as e:
+        st.error(f"Gagal memuat database dari Supabase: {e}")
+        return []
+
+def save_database(item_data, is_new=False):
+    """Menyimpan item tunggal ke Supabase (Insert jika baru, Update jika ada)."""
+    try:
+        db_payload = item_data.copy()
+        
+        # Hapus field bytes yang tidak disimpan di DB
+        db_payload.pop("file_opb_bytes", None)
+        db_payload.pop("file_iom_bytes", None)
+        db_payload.pop("file_bast_bytes", None)
+        
+        # Konversi list timeline ke JSON string untuk dipasang di database
+        if isinstance(db_payload.get("timeline"), list):
+            db_payload["timeline"] = json.dumps(db_payload["timeline"])
+            
+        if is_new:
+            # Hapus id jika auto-generated oleh Supabase
+            db_payload.pop("id", None)
+            response = supabase.table("opb_data").insert(db_payload).execute()
+        else:
+            response = supabase.table("opb_data").update(db_payload).eq("id", db_payload["id"]).execute()
+            
+        return response
+    except Exception as e:
+        st.error(f"Gagal menyimpan ke Supabase: {e}")
 
 # --- 3. CUSTOM CSS & ANIMATED TIMELINE ---
 st.markdown(
@@ -199,7 +212,6 @@ USERS = {
     },
 }
 
-
 # --- 5. FUNGSI LOG DAN TANDA TANGAN DIGITAL ---
 def generate_digital_signature(user_role, user_name, doc_id):
     wib = pytz.timezone("Asia/Jakarta")
@@ -213,27 +225,22 @@ def generate_digital_signature(user_role, user_name, doc_id):
         "hash": f"DS-P3SRS-{sig_hash}",
     }
 
-
 def catat_log(item, pesan, digital_sig=None):
     wib = pytz.timezone("Asia/Jakarta")
     waktu_sekarang = datetime.now(wib).strftime("%d/%m/%Y %H:%M:%S")
     log_entry = {"waktu": waktu_sekarang, "pesan": pesan}
     if digital_sig:
         log_entry["signature"] = digital_sig
+    if "timeline" not in item or not isinstance(item["timeline"], list):
+        item["timeline"] = []
     item["timeline"].append(log_entry)
-
 
 def render_download_buttons(item, key_prefix="dl"):
     col1, col2, col3 = st.columns(3)
     with col1:
-        if item.get("file_opb_bytes"):
-            st.download_button(
-                label=f"📥 Download File OPB ({item.get('file_opb_name', 'OPB.pdf')})",
-                data=item["file_opb_bytes"],
-                file_name=item.get("file_opb_name", "OPB_Dokumen.pdf"),
-                mime="application/octet-stream",
-                key=f"{key_prefix}_opb_{item['id']}",
-                use_container_width=True,
+        if item.get("file_opb_url"):
+            st.markdown(
+                f"[📥 Download OPB ({item.get('file_opb_name', 'OPB.pdf')})]({item['file_opb_url']})"
             )
         else:
             resume_text = f"RESUME DOKUMEN OPB\nNomor: {item['nomor_opb']}\nNama Barang: {item['nama_barang']}\nJumlah: {item['jumlah']}\nKeterangan: {item['keterangan']}"
@@ -247,31 +254,20 @@ def render_download_buttons(item, key_prefix="dl"):
             )
 
     with col2:
-        if item.get("file_iom_bytes"):
-            st.download_button(
-                label=f"📥 Download File IOM ({item.get('file_iom_name', 'IOM.pdf')})",
-                data=item["file_iom_bytes"],
-                file_name=item.get("file_iom_name", "IOM_Dokumen.pdf"),
-                mime="application/octet-stream",
-                key=f"{key_prefix}_iom_{item['id']}",
-                use_container_width=True,
+        if item.get("file_iom_url"):
+            st.markdown(
+                f"[📥 Download IOM ({item.get('file_iom_name', 'IOM.pdf')})]({item['file_iom_url']})"
             )
         else:
             st.info("ℹ️ File IOM Belum Diunggah")
 
     with col3:
-        if item.get("file_bast_bytes"):
-            st.download_button(
-                label=f"📦 Download BAST ({item.get('file_bast_name', 'BAST.pdf')})",
-                data=item["file_bast_bytes"],
-                file_name=item.get("file_bast_name", "BAST_Penerimaan.pdf"),
-                mime="application/octet-stream",
-                key=f"{key_prefix}_bast_{item['id']}",
-                use_container_width=True,
+        if item.get("file_bast_url"):
+            st.markdown(
+                f"[📦 Download BAST ({item.get('file_bast_name', 'BAST.pdf')})]({item['file_bast_url']})"
             )
         else:
             st.caption("ℹ️ BAST Belum Diunggah")
-
 
 def render_signature_pad(key_id):
     canvas_html = f"""
@@ -316,7 +312,6 @@ def render_signature_pad(key_id):
     """
     components.html(canvas_html, height=190)
 
-
 def cek_notifikasi_user(role):
     db = st.session_state["db_opb"]
     pending_items = []
@@ -357,10 +352,8 @@ def cek_notifikasi_user(role):
 
     return pending_items
 
-
-# --- 6. INITIALIZATION SESSION STATE BERBASIS JSON ---
-if "db_opb" not in st.session_state:
-    st.session_state["db_opb"] = load_database()  # Load otomatis dari JSON
+# --- 6. INITIALIZATION SESSION STATE BERBASIS SUPABASE ---
+st.session_state["db_opb"] = load_database()
 
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
@@ -761,26 +754,27 @@ else:
 
             if submit:
                 if nama_barang and file_opb:
-                    with st.spinner("Menyimpan berkas..."):
+                    with st.spinner("Menyimpan berkas ke Supabase..."):
                         file_bytes = file_opb.getvalue()
                         file_name = file_opb.name
+                        
+                        file_url = upload_file_to_supabase(file_bytes, file_name, folder="opb")
 
                         sig_eng = generate_digital_signature(
                             "Engineering", user_info["name"], nomor_opb
                         )
                         data_baru = {
-                            "id": len(st.session_state["db_opb"]) + 1,
                             "nomor_opb": nomor_opb,
                             "nama_barang": nama_barang,
                             "jumlah": jumlah,
                             "keterangan": keterangan,
-                            "file_opb_bytes": file_bytes,
+                            "file_opb_url": file_url,
                             "file_opb_name": file_name,
                             "harga_estimasi": 0,
                             "vendor": "-",
-                            "file_iom_bytes": None,
+                            "file_iom_url": None,
                             "file_iom_name": "-",
-                            "file_bast_bytes": None,
+                            "file_bast_url": None,
                             "file_bast_name": "-",
                             "catatan_bm": "-",
                             "catatan_finance": "-",
@@ -794,9 +788,7 @@ else:
                             digital_sig=sig_eng,
                         )
 
-                        # SIMPAN KE SESSION STATE DAN LOKAL JSON FILE
-                        st.session_state["db_opb"].append(data_baru)
-                        save_database(st.session_state["db_opb"])
+                        save_database(data_baru, is_new=True)
 
                         st.toast(
                             "🚀 OPB Berhasil diteruskan ke Purchasing!",
@@ -861,8 +853,7 @@ else:
                             digital_sig=sig_rcv,
                         )
 
-                        # SIMPAN PERUBAHAN PERMANEN
-                        save_database(st.session_state["db_opb"])
+                        save_database(item, is_new=False)
 
                         st.session_state["target_focus_id"] = None
                         st.toast(
@@ -939,7 +930,7 @@ else:
                             digital_sig=sig_pur,
                         )
 
-                        save_database(st.session_state["db_opb"])
+                        save_database(item, is_new=False)
                         st.session_state["target_focus_id"] = None
                         st.toast("📩 Berhasil dikirim ke BM!", icon="✅")
                         st.rerun()
@@ -990,13 +981,14 @@ else:
                         if file_iom:
                             iom_bytes = file_iom.getvalue()
                             iom_name = file_iom.name
+                            iom_url = upload_file_to_supabase(iom_bytes, iom_name, folder="iom")
 
                             sig_pur_iom = generate_digital_signature(
                                 "Purchasing (IOM Draft)",
                                 user_info["name"],
                                 item["nomor_opb"],
                             )
-                            item["file_iom_bytes"] = iom_bytes
+                            item["file_iom_url"] = iom_url
                             item["file_iom_name"] = iom_name
                             item["status"] = "4. Review Finance"
                             catat_log(
@@ -1005,7 +997,7 @@ else:
                                 digital_sig=sig_pur_iom,
                             )
 
-                            save_database(st.session_state["db_opb"])
+                            save_database(item, is_new=False)
                             st.session_state["target_focus_id"] = None
                             st.toast(
                                 "📩 Draft IOM Dikirim ke Finance!", icon="✅"
@@ -1069,7 +1061,8 @@ else:
                         if file_bast:
                             bast_bytes = file_bast.getvalue()
                             bast_name = file_bast.name
-                            item["file_bast_bytes"] = bast_bytes
+                            bast_url = upload_file_to_supabase(bast_bytes, bast_name, folder="bast")
+                            item["file_bast_url"] = bast_url
                             item["file_bast_name"] = bast_name
 
                         sig_handover = generate_digital_signature(
@@ -1086,7 +1079,7 @@ else:
                             digital_sig=sig_handover,
                         )
 
-                        save_database(st.session_state["db_opb"])
+                        save_database(item, is_new=False)
                         st.session_state["target_focus_id"] = None
                         st.toast(
                             "📦 Barang & BAST berhasil diserahkan ke Engineering!",
@@ -1157,7 +1150,7 @@ else:
                                 digital_sig=sig_bm,
                             )
 
-                            save_database(st.session_state["db_opb"])
+                            save_database(item, is_new=False)
                             st.session_state["target_focus_id"] = None
                             st.toast("✅ OPB Disetujui!", icon="👍")
                             st.rerun()
@@ -1173,7 +1166,7 @@ else:
                                 item, f"BM meminta revisi OPB: {catatan}"
                             )
 
-                            save_database(st.session_state["db_opb"])
+                            save_database(item, is_new=False)
                             st.session_state["target_focus_id"] = None
                             st.toast(
                                 "⚠️ Diminta Revisi ke Purchasing", icon="🔄"
@@ -1227,7 +1220,7 @@ else:
                             digital_sig=sig_bm_iom,
                         )
 
-                        save_database(st.session_state["db_opb"])
+                        save_database(item, is_new=False)
                         st.session_state["target_focus_id"] = None
                         st.toast("✅ Persetujuan BM dicatat!", icon="👍")
                         st.rerun()
@@ -1283,7 +1276,7 @@ else:
                             digital_sig=sig_fin,
                         )
 
-                        save_database(st.session_state["db_opb"])
+                        save_database(item, is_new=False)
                         st.session_state["target_focus_id"] = None
                         st.toast("💰 Budget Disetujui!", icon="✅")
                         st.rerun()
@@ -1299,7 +1292,7 @@ else:
                             item, f"Finance meminta revisi budget: {catatan}"
                         )
 
-                        save_database(st.session_state["db_opb"])
+                        save_database(item, is_new=False)
                         st.session_state["target_focus_id"] = None
                         st.toast("⚠️ Permintaan Revisi dikirim!", icon="🔄")
                         st.rerun()
@@ -1357,7 +1350,7 @@ else:
                             digital_sig=sig_p3srs,
                         )
 
-                        save_database(st.session_state["db_opb"])
+                        save_database(item, is_new=False)
                         st.session_state["target_focus_id"] = None
                         st.toast("🎉 IOM Disetujui P3SRS!", icon="✅")
                         st.rerun()
@@ -1374,7 +1367,7 @@ else:
                             f"P3SRS menolak/meminta revisi IOM: {catatan}",
                         )
 
-                        save_database(st.session_state["db_opb"])
+                        save_database(item, is_new=False)
                         st.session_state["target_focus_id"] = None
                         st.toast(
                             "⚠️ Revisi Dikirim ke Purchasing!", icon="🔄"
