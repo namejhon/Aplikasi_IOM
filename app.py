@@ -18,7 +18,7 @@ st.set_page_config(
     page_title="Sistem Flow OPB & IOM - P3SRS",
     page_icon="🏢",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="auto",
 )
 
 # --- 1.1 AUTO REFRESH (Polling Realtime Data tiap 5 detik) ---
@@ -110,40 +110,44 @@ def save_database(item_data, is_new=False):
         st.error(f"Gagal menyimpan ke Supabase: {e}")
 
 
-# --- 3. CUSTOM CSS & ANIMATED TIMELINE ---
+# --- 3. RESPONSIVE CUSTOM CSS (OPTIMIZED FOR MOBILE & DESKTOP) ---
 st.markdown(
     """
     <style>
+    /* Styling Dasar Dashboard */
     .stApp { background: #f8fafc; }
     
+    /* Header Utama */
     .main-header {
         background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);
-        padding: 28px 35px;
+        padding: 24px 28px;
         border-radius: 18px;
         color: white;
-        margin-bottom: 25px;
+        margin-bottom: 20px;
         box-shadow: 0 10px 25px -5px rgba(67, 56, 202, 0.3);
     }
-    .main-header h1 { color: #ffffff !important; font-weight: 800; letter-spacing: -0.5px; margin: 0; font-size: 30px; }
-    .main-header p { color: #c7d2fe; margin-top: 6px; margin-bottom: 0; font-size: 14px; }
+    .main-header h1 { color: #ffffff !important; font-weight: 800; letter-spacing: -0.5px; margin: 0; font-size: 26px; }
+    .main-header p { color: #c7d2fe; margin-top: 6px; margin-bottom: 0; font-size: 13px; }
     
+    /* KPI Card Responsif */
     .kpi-card {
-        background: white; border-radius: 16px; padding: 20px 24px;
+        background: white; border-radius: 16px; padding: 18px 20px;
         box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0;
-        position: relative; overflow: hidden; transition: all 0.3s ease;
+        position: relative; overflow: hidden; transition: all 0.3s ease; margin-bottom: 10px;
     }
-    .kpi-card:hover { transform: translateY(-4px); box-shadow: 0 12px 25px -5px rgba(0, 0, 0, 0.08); }
+    .kpi-card:hover { transform: translateY(-3px); box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.08); }
     .kpi-blue { border-top: 4px solid #3b82f6; }
     .kpi-amber { border-top: 4px solid #f59e0b; }
     .kpi-emerald { border-top: 4px solid #10b981; }
     .kpi-purple { border-top: 4px solid #8b5cf6; }
     
-    .kpi-title { color: #64748b; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; }
-    .kpi-value { color: #0f172a; font-size: 28px; font-weight: 800; margin-top: 6px; }
-    .kpi-sub { font-size: 12px; font-weight: 600; margin-top: 4px; }
+    .kpi-title { color: #64748b; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; }
+    .kpi-value { color: #0f172a; font-size: 24px; font-weight: 800; margin-top: 4px; }
+    .kpi-sub { font-size: 11px; font-weight: 600; margin-top: 4px; }
     
+    /* User Profile Card */
     .user-profile-card {
-        background: white; padding: 16px 20px; border-radius: 14px;
+        background: white; padding: 14px 18px; border-radius: 14px;
         border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.03); margin-bottom: 15px;
     }
     .role-badge {
@@ -151,47 +155,49 @@ st.markdown(
         border-radius: 20px; font-size: 11px; font-weight: 700; display: inline-block; margin-top: 5px;
     }
     
+    /* Notification Card */
     .notif-box {
         background: linear-gradient(135deg, #fffbe3 0%, #fef3c7 100%);
-        border-left: 5px solid #f59e0b; color: #78350f; padding: 18px 22px;
-        border-radius: 16px; margin-bottom: 22px; box-shadow: 0 4px 15px rgba(245, 158, 11, 0.12);
+        border-left: 5px solid #f59e0b; color: #78350f; padding: 16px 20px;
+        border-radius: 16px; margin-bottom: 18px; box-shadow: 0 4px 15px rgba(245, 158, 11, 0.12);
     }
     
+    /* Content Boxes */
     .content-box {
-        background: white; border-radius: 16px; padding: 24px;
+        background: white; border-radius: 16px; padding: 20px;
         border: 1px solid #e2e8f0; box-shadow: 0 4px 15px -3px rgba(0,0,0,0.03); margin-bottom: 20px;
     }
-    
-    @keyframes slideInUp {
-        0% { opacity: 0; transform: translateY(18px); }
-        100% { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes pulseGlow {
-        0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.5); }
-        70% { box-shadow: 0 0 0 8px rgba(99, 102, 241, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
-    }
 
-    .timeline-container { position: relative; padding-left: 24px; margin: 20px 0 10px 10px; border-left: 3px solid #e2e8f0; }
+    /* Animasi Timeline */
+    .timeline-container { position: relative; padding-left: 20px; margin: 15px 0 10px 5px; border-left: 3px solid #e2e8f0; }
     .timeline-card {
         position: relative; background: #ffffff; border: 1px solid #e2e8f0;
-        border-radius: 14px; padding: 14px 18px; margin-bottom: 16px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03); animation: slideInUp 0.4s ease-out forwards;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border-radius: 12px; padding: 12px 16px; margin-bottom: 14px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03); transition: all 0.2s ease;
     }
-    .timeline-card:hover { transform: translateX(5px); border-color: #818cf8; box-shadow: 0 8px 20px rgba(99, 102, 241, 0.12); }
+    .timeline-card:hover { border-color: #818cf8; }
     .timeline-card::before {
-        content: ''; position: absolute; left: -32px; top: 18px; width: 14px; height: 14px;
-        border-radius: 50%; background-color: #6366f1; border: 3px solid #ffffff; animation: pulseGlow 2s infinite;
+        content: ''; position: absolute; left: -27px; top: 16px; width: 12px; height: 12px;
+        border-radius: 50%; background-color: #6366f1; border: 3px solid #ffffff;
     }
     .timeline-time {
-        display: inline-flex; align-items: center; gap: 5px; background: #e0e7ff;
-        color: #3730a3; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 12px; margin-bottom: 8px;
+        display: inline-flex; align-items: center; background: #e0e7ff;
+        color: #3730a3; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 10px; margin-bottom: 6px;
     }
-    .timeline-desc { color: #0f172a; font-size: 13.5px; font-weight: 500; line-height: 1.5; margin: 0; }
+    .timeline-desc { color: #0f172a; font-size: 13px; font-weight: 500; line-height: 1.4; margin: 0; }
     .digital-signature-badge {
         display: inline-block; background: #ecfdf5; border: 1px dashed #10b981;
-        color: #047857; font-size: 11px; padding: 4px 8px; border-radius: 6px; margin-top: 6px; font-family: monospace;
+        color: #047857; font-size: 10.5px; padding: 3px 8px; border-radius: 6px; margin-top: 6px; font-family: monospace; word-break: break-all;
+    }
+
+    /* MEDIA QUERIES UNTUK HP (MOBILE ADAPTATIVE) */
+    @media (max-width: 768px) {
+        .main-header { padding: 18px 20px; border-radius: 14px; }
+        .main-header h1 { font-size: 20px !important; }
+        .main-header p { font-size: 12px !important; }
+        .content-box { padding: 15px; border-radius: 12px; }
+        .kpi-value { font-size: 20px; }
+        .stButton>button { width: 100% !important; }
     }
     </style>
 """,
@@ -254,16 +260,16 @@ def catat_log(item, pesan, digital_sig=None):
 
 
 def render_download_buttons(item, key_prefix="dl"):
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
         if item.get("file_opb_url"):
             st.markdown(
-                f"[📥 Download OPB ({item.get('file_opb_name', 'OPB.pdf')})]({item['file_opb_url']})"
+                f"[📥 Download OPB]({item['file_opb_url']})"
             )
         else:
             resume_text = f"RESUME DOKUMEN OPB\nNomor: {item['nomor_opb']}\nNama Barang: {item['nama_barang']}\nJumlah: {item['jumlah']}\nKeterangan: {item['keterangan']}"
             st.download_button(
-                label=f"📄 Draft OPB ({item['nomor_opb'].replace('/', '_')}.txt)",
+                label=f"📄 Draft OPB",
                 data=resume_text.encode("utf-8"),
                 file_name=f"{item['nomor_opb'].replace('/', '_')}.txt",
                 mime="text/plain",
@@ -274,62 +280,71 @@ def render_download_buttons(item, key_prefix="dl"):
     with col2:
         if item.get("file_iom_url"):
             st.markdown(
-                f"[📥 Download IOM ({item.get('file_iom_name', 'IOM.pdf')})]({item['file_iom_url']})"
+                f"[📥 Download IOM]({item['file_iom_url']})"
             )
         else:
-            st.info("ℹ️ File IOM Belum Diunggah")
+            st.caption("ℹ️ IOM Belum Ada")
 
     with col3:
         if item.get("file_bast_url"):
             st.markdown(
-                f"[📦 Download BAST ({item.get('file_bast_name', 'BAST.pdf')})]({item['file_bast_url']})"
+                f"[📦 Download BAST]({item['file_bast_url']})"
             )
         else:
-            st.caption("ℹ️ BAST Belum Diunggah")
+            st.caption("ℹ️ BAST Belum Ada")
 
 
 def render_signature_pad(key_id):
+    """HTML Canvas Tanda Tangan Digital yang Responsif di HP & PC."""
     canvas_html = f"""
-    <div style="border:1px dashed #6366f1; padding:10px; border-radius:10px; background:#f8fafc; text-align:center;">
-        <label style="font-size:12px; font-weight:bold; color:#3730a3; display:block; margin-bottom:5px;">
-            ✍️ Goreskan Tanda Tangan Digital Anda Pada Area Di Bawah Ini:
+    <div style="border:1px dashed #6366f1; padding:8px; border-radius:12px; background:#f8fafc; text-align:center; max-width:100%;">
+        <label style="font-size:12px; font-weight:bold; color:#3730a3; display:block; margin-bottom:6px;">
+            ✍️ Goreskan Tanda Tangan Digital Anda (Touchscreen Ready):
         </label>
-        <canvas id="sigCanvas_{key_id}" width="380" height="130" style="border:1px solid #cbd5e1; border-radius:8px; background:#ffffff; cursor:crosshair;"></canvas>
+        <canvas id="sigCanvas_{key_id}" style="border:1px solid #cbd5e1; border-radius:8px; background:#ffffff; cursor:crosshair; touch-action:none; width:100%; height:120px;"></canvas>
         <br>
-        <button onclick="clearCanvas_{key_id}()" style="margin-top:5px; background:#f1f5f9; border:1px solid #cbd5e1; padding:3px 10px; border-radius:6px; font-size:11px; cursor:pointer;">
+        <button onclick="clearCanvas_{key_id}()" style="margin-top:6px; background:#f1f5f9; border:1px solid #cbd5e1; padding:4px 12px; border-radius:6px; font-size:11px; cursor:pointer;">
             🗑️ Bersihkan Canvas
         </button>
     </div>
     <script>
         var canvas_{key_id} = document.getElementById('sigCanvas_{key_id}');
         var ctx_{key_id} = canvas_{key_id}.getContext('2d');
+        
+        // Auto Adjust Canvas Resolution
+        canvas_{key_id}.width = canvas_{key_id}.offsetWidth;
+        canvas_{key_id}.height = canvas_{key_id}.offsetHeight;
+
         var drawing_{key_id} = false;
 
         function getPos(e) {{
             var rect = canvas_{key_id}.getBoundingClientRect();
+            var clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            var clientY = e.clientY || (e.touches && e.touches[0].clientY);
             return {{
-                x: (e.clientX || e.touches[0].clientX) - rect.left,
-                y: (e.clientY || e.touches[0].clientY) - rect.top
+                x: clientX - rect.left,
+                y: clientY - rect.top
             }};
         }}
 
         function startDraw(e) {{ drawing_{key_id} = true; ctx_{key_id}.beginPath(); var pos = getPos(e); ctx_{key_id}.moveTo(pos.x, pos.y); }}
-        function moveDraw(e) {{ if (!drawing_{key_id}) return; var pos = getPos(e); ctx_{key_id}.lineTo(pos.x, pos.y); ctx_{key_id}.strokeStyle = '#1e1b4b'; ctx_{key_id}.lineWidth = 2; ctx_{key_id}.stroke(); }}
+        function moveDraw(e) {{ if (!drawing_{key_id}) return; var pos = getPos(e); ctx_{key_id}.lineTo(pos.x, pos.y); ctx_{key_id}.strokeStyle = '#1e1b4b'; ctx_{key_id}.lineWidth = 2.5; ctx_{key_id}.stroke(); }}
         function stopDraw() {{ drawing_{key_id} = false; }}
 
         canvas_{key_id}.addEventListener('mousedown', startDraw);
         canvas_{key_id}.addEventListener('mousemove', moveDraw);
         canvas_{key_id}.addEventListener('mouseup', stopDraw);
-        canvas_{key_id}.addEventListener('touchstart', startDraw);
-        canvas_{key_id}.addEventListener('touchmove', moveDraw);
-        canvas_{key_id}.addEventListener('touchend', stopDraw);
+        
+        canvas_{key_id}.addEventListener('touchstart', function(e){{ startDraw(e); e.preventDefault(); }}, false);
+        canvas_{key_id}.addEventListener('touchmove', function(e){{ moveDraw(e); e.preventDefault(); }}, false);
+        canvas_{key_id}.addEventListener('touchend', stopDraw, false);
 
         function clearCanvas_{key_id}() {{
             ctx_{key_id}.clearRect(0, 0, canvas_{key_id}.width, canvas_{key_id}.height);
         }}
     </script>
     """
-    components.html(canvas_html, height=190)
+    components.html(canvas_html, height=185)
 
 
 def cek_notifikasi_user(role):
@@ -393,17 +408,17 @@ if "notif_shown" not in st.session_state:
 if "target_focus_id" not in st.session_state:
     st.session_state["target_focus_id"] = None
 
-# ==================== HALAMAN LOGIN INTERAKTIF ====================
+# ==================== HALAMAN LOGIN INTERAKTIF & RESPONSIF ====================
 if not st.session_state["logged_in"]:
-    col_l1, col_l2, col_l3 = st.columns([1.2, 1.6, 1.2])
+    col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
 
     with col_l2:
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown(
             """
-            <div style="text-align: center; margin-bottom: -20px;">
+            <div style="text-align: center; margin-bottom: -15px;">
                 <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
-                <lottie-player src="https://assets2.lottiefiles.com/packages/lf20_mbe44xec.json" background="transparent" speed="1" style="width: 280px; height: 220px; margin: 0 auto;" loop autoplay></lottie-player>
+                <lottie-player src="https://assets2.lottiefiles.com/packages/lf20_mbe44xec.json" background="transparent" speed="1" style="width: 220px; height: 180px; margin: 0 auto;" loop autoplay></lottie-player>
             </div>
         """,
             unsafe_allow_html=True,
@@ -412,8 +427,8 @@ if not st.session_state["logged_in"]:
         st.markdown(
             """
             <div style='text-align: center; margin-bottom: 20px;'>
-                <h2 style='color: #1e1b4b; font-weight: 800; margin: 0; font-size: 28px;'>Portal OPB & IOM - P3SRS</h2>
-                <p style='color: #64748b; font-size: 14px; margin-top: 5px;'>Sistem Digitalisasi OPB, IOM & Serah Terima Barang Inter-Divisi</p>
+                <h2 style='color: #1e1b4b; font-weight: 800; margin: 0; font-size: 24px;'>Portal OPB & IOM - P3SRS</h2>
+                <p style='color: #64748b; font-size: 13px; margin-top: 5px;'>Sistem Digitalisasi OPB, IOM & Serah Terima Barang Inter-Divisi</p>
             </div>
         """,
             unsafe_allow_html=True,
@@ -473,7 +488,7 @@ else:
     st.sidebar.markdown(
         f"""
         <div class="user-profile-card">
-            <h4 style="margin:0; color:#0f172a; font-size:15px; font-weight:700;">👤 {user_info['name']}</h4>
+            <h4 style="margin:0; color:#0f172a; font-size:14px; font-weight:700;">👤 {user_info['name']}</h4>
             <span class="role-badge">{user_info['role']}</span>
         </div>
     """,
@@ -508,11 +523,11 @@ else:
         st.markdown(
             f"""
             <div class="notif-box">
-                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                    <span style="font-size:24px;">🔔</span>
-                    <span style="font-size: 16px; font-weight: 700;">Notifikasi Tugas Masuk ({len(pending_tasks)} Berkas)</span>
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                    <span style="font-size:20px;">🔔</span>
+                    <span style="font-size: 15px; font-weight: 700;">Notifikasi Tugas Masuk ({len(pending_tasks)} Berkas)</span>
                 </div>
-                <div style="font-size: 13px; margin-bottom: 12px; opacity: 0.9;">
+                <div style="font-size: 12px; margin-bottom: 10px; opacity: 0.9;">
                     Klik tombol di bawah ini untuk langsung menuju berkas pekerjaan terkait:
                 </div>
             </div>
@@ -531,7 +546,6 @@ else:
                     use_container_width=True,
                 ):
                     st.session_state["target_focus_id"] = item_task["id"]
-                    # Auto-scroll JS ke elemen target
                     components.html(
                         """
                         <script>
@@ -571,7 +585,7 @@ else:
                 f"""
                 <div class="kpi-card kpi-blue">
                     <div class="kpi-title">Total Permintaan</div>
-                    <div class="kpi-value">{total_opb} <span style="font-size:15px; color:#64748b;">OPB</span></div>
+                    <div class="kpi-value">{total_opb} <span style="font-size:13px; color:#64748b;">OPB</span></div>
                     <div class="kpi-sub" style="color:#2563eb;">📂 Seluruh Berkas</div>
                 </div>
             """,
@@ -583,7 +597,7 @@ else:
                 f"""
                 <div class="kpi-card kpi-amber">
                     <div class="kpi-title">Dalam Process</div>
-                    <div class="kpi-value" style="color:#d97706;">{total_proses} <span style="font-size:15px; color:#64748b;">OPB</span></div>
+                    <div class="kpi-value" style="color:#d97706;">{total_proses} <span style="font-size:13px; color:#64748b;">OPB</span></div>
                     <div class="kpi-sub" style="color:#d97706;">⏳ On Progress</div>
                 </div>
             """,
@@ -595,8 +609,8 @@ else:
                 f"""
                 <div class="kpi-card kpi-emerald">
                     <div class="kpi-title">Selesai (Completed)</div>
-                    <div class="kpi-value" style="color:#059669;">{total_selesai} <span style="font-size:15px; color:#64748b;">OPB</span></div>
-                    <div class="kpi-sub" style="color:#059669;">✅ Handover Verified</div>
+                    <div class="kpi-value" style="color:#059669;">{total_selesai} <span style="font-size:13px; color:#64748b;">OPB</span></div>
+                    <div class="kpi-sub" style="color:#059669;">✅ Verified</div>
                 </div>
             """,
                 unsafe_allow_html=True,
@@ -607,8 +621,8 @@ else:
                 f"""
                 <div class="kpi-card kpi-purple">
                     <div class="kpi-title">Total Estimasi Budget</div>
-                    <div class="kpi-value" style="color:#7c3aed; font-size:22px;">Rp {total_anggaran:,.0f}</div>
-                    <div class="kpi-sub" style="color:#7c3aed;">💰 Akumulasi Anggaran</div>
+                    <div class="kpi-value" style="color:#7c3aed; font-size:20px;">Rp {total_anggaran:,.0f}</div>
+                    <div class="kpi-sub" style="color:#7c3aed;">💰 Total Anggaran</div>
                 </div>
             """,
                 unsafe_allow_html=True,
@@ -621,7 +635,7 @@ else:
         with col_dash1:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.markdown(
-                "##### 📌 Progress Live Status & Animasi Timeline Berkas"
+                "##### 📌 Progress Live Status & Timeline Berkas"
             )
             st.markdown("<br>", unsafe_allow_html=True)
             for idx, item in enumerate(st.session_state["db_opb"]):
@@ -645,16 +659,16 @@ else:
                 with c_a:
                     st.progress(prog_pct)
                 with c_b:
-                    st.caption(f"**{prog_pct}%** ({status_badge})")
+                    st.caption(f"**{prog_pct}%**")
                 st.caption(
                     f"📍 Status: `{status_curr}` | 💰 Est: Rp {item['harga_estimasi']:,}"
                 )
 
-                st.markdown("📂 **Unduh Lampiran Berkas OPB / IOM / BAST:**")
+                st.markdown("📂 **Unduh Lampiran Berkas:**")
                 render_download_buttons(item, key_prefix=f"dash_{idx}")
 
                 with st.expander(
-                    f"📜 Timeline & Jejak Verifikasi Tanda Tangan ({len(item['timeline'])} Aktivitas)"
+                    f"📜 Timeline & Jejak Verifikasi ({len(item['timeline'])} Aktivitas)"
                 ):
                     if item["timeline"]:
                         st.markdown(
@@ -675,7 +689,7 @@ else:
                             if sig:
                                 sig_badge_html = f"""
                                 <br><span class="digital-signature-badge">
-                                    🔏 Signed digitally by <b>{sig['signed_by']}</b> ({sig['role']}) | {sig['hash']}
+                                    🔏 Signed by <b>{sig['signed_by']}</b> ({sig['role']}) | {sig['hash']}
                                 </span>
                                 """
 
@@ -721,7 +735,7 @@ else:
                 yaxis_title=None,
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(family="Inter, sans-serif", size=12, color="#475569"),
+                font=dict(family="Inter, sans-serif", size=11, color="#475569"),
                 coloraxis_showscale=False,
             )
             fig.update_traces(
@@ -956,6 +970,7 @@ else:
                         "Kirim ke BM untuk Review",
                         key=f"btn_p1_{item['id']}",
                         type="primary",
+                        use_container_width=True,
                     ):
                         sig_pur = generate_digital_signature(
                             "Purchasing", user_info["name"], item["nomor_opb"]
@@ -1014,6 +1029,7 @@ else:
                         "Kirim Berkas IOM ke Finance",
                         key=f"btn_p2_{item['id']}",
                         type="primary",
+                        use_container_width=True,
                     ):
                         if file_iom:
                             iom_bytes = file_iom.getvalue()
@@ -1374,7 +1390,7 @@ else:
                 col1, col2 = st.columns(2)
                 with col1:
                     if st.button(
-                        "✅ ACC, Tanda Tangan & Instruksikan Serah Terima",
+                        "✅ ACC, Tanda Tangan & Serah Terima",
                         key=f"app_p3srs_{item['id']}",
                         type="primary",
                         use_container_width=True,
