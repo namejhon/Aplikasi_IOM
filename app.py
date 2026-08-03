@@ -3,13 +3,15 @@ import hashlib
 import json
 import os
 from datetime import datetime
+import extra_streamlit_components as stx
 import pandas as pd
 import plotly.express as px
 import pytz
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
-from supabase import create_client, Client
+from streamlit_autorefresh import st_autorefresh
+from supabase import Client, create_client
 
 # --- 1. KONFIGURASI HALAMAN ---
 st.set_page_config(
@@ -18,6 +20,10 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+# --- 1.1 AUTO REFRESH (Polling Realtime Data tiap 5 detik) ---
+# Memastikan update barang dari user lain langsung muncul otomatis
+st_autorefresh(interval=5000, limit=None, key="opb_datarefresh")
 
 # --- INISIALISASI SUPABASE CLIENT ---
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", os.environ.get("SUPABASE_URL", ""))
@@ -37,25 +43,33 @@ def upload_file_to_supabase(file_bytes, file_name, folder="opb"):
     try:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_filename = f"{folder}/{timestamp}_{file_name.replace(' ', '_')}"
-        
+
         # Upload byte file ke bucket Supabase
         supabase.storage.from_(BUCKET_NAME).upload(
             file=file_bytes,
             path=safe_filename,
-            file_options={"content-type": "application/octet-stream"}
+            file_options={"content-type": "application/octet-stream"},
         )
-        
+
         # Ambil URL Publik
-        public_url = supabase.storage.from_(BUCKET_NAME).get_public_url(safe_filename)
+        public_url = supabase.storage.from_(BUCKET_NAME).get_public_url(
+            safe_filename
+        )
         return public_url
     except Exception as e:
         st.error(f"Gagal upload file ke Supabase Storage: {e}")
         return None
 
+
 def load_database():
     """Membaca seluruh data OPB dari tabel Supabase."""
     try:
-        response = supabase.table("opb_data").select("*").order("id", desc=False).execute()
+        response = (
+            supabase.table("opb_data")
+            .select("*")
+            .order("id", desc=False)
+            .execute()
+        )
         data = response.data
         for item in data:
             if isinstance(item.get("timeline"), str):
@@ -70,30 +84,37 @@ def load_database():
         st.error(f"Gagal memuat database dari Supabase: {e}")
         return []
 
+
 def save_database(item_data, is_new=False):
     """Menyimpan item tunggal ke Supabase (Insert jika baru, Update jika ada)."""
     try:
         db_payload = item_data.copy()
-        
+
         # Hapus field bytes yang tidak disimpan di DB
         db_payload.pop("file_opb_bytes", None)
         db_payload.pop("file_iom_bytes", None)
         db_payload.pop("file_bast_bytes", None)
-        
+
         # Konversi list timeline ke JSON string untuk dipasang di database
         if isinstance(db_payload.get("timeline"), list):
             db_payload["timeline"] = json.dumps(db_payload["timeline"])
-            
+
         if is_new:
             # Hapus id jika auto-generated oleh Supabase
             db_payload.pop("id", None)
             response = supabase.table("opb_data").insert(db_payload).execute()
         else:
-            response = supabase.table("opb_data").update(db_payload).eq("id", db_payload["id"]).execute()
-            
+            response = (
+                supabase.table("opb_data")
+                .update(db_payload)
+                .eq("id", db_payload["id"])
+                .execute()
+            )
+
         return response
     except Exception as e:
         st.error(f"Gagal menyimpan ke Supabase: {e}")
+
 
 # --- 3. CUSTOM CSS & ANIMATED TIMELINE ---
 st.markdown(
@@ -212,6 +233,7 @@ USERS = {
     },
 }
 
+
 # --- 5. FUNGSI LOG DAN TANDA TANGAN DIGITAL ---
 def generate_digital_signature(user_role, user_name, doc_id):
     wib = pytz.timezone("Asia/Jakarta")
@@ -225,6 +247,7 @@ def generate_digital_signature(user_role, user_name, doc_id):
         "hash": f"DS-P3SRS-{sig_hash}",
     }
 
+
 def catat_log(item, pesan, digital_sig=None):
     wib = pytz.timezone("Asia/Jakarta")
     waktu_sekarang = datetime.now(wib).strftime("%d/%m/%Y %H:%M:%S")
@@ -234,6 +257,7 @@ def catat_log(item, pesan, digital_sig=None):
     if "timeline" not in item or not isinstance(item["timeline"], list):
         item["timeline"] = []
     item["timeline"].append(log_entry)
+
 
 def render_download_buttons(item, key_prefix="dl"):
     col1, col2, col3 = st.columns(3)
@@ -268,6 +292,7 @@ def render_download_buttons(item, key_prefix="dl"):
             )
         else:
             st.caption("ℹ️ BAST Belum Diunggah")
+
 
 def render_signature_pad(key_id):
     canvas_html = f"""
@@ -312,6 +337,7 @@ def render_signature_pad(key_id):
     """
     components.html(canvas_html, height=190)
 
+
 def cek_notifikasi_user(role):
     db = st.session_state["db_opb"]
     pending_items = []
@@ -352,13 +378,24 @@ def cek_notifikasi_user(role):
 
     return pending_items
 
-# --- 6. INITIALIZATION SESSION STATE BERBASIS SUPABASE ---
+
+# --- 6. INITIALIZATION SESSION STATE BERBASIS SUPABASE & COOKIE ---
 st.session_state["db_opb"] = load_database()
+
+# Inisialisasi Cookie Manager agar login bertahan saat refresh
+cookie_manager = stx.get_cookie_manager()
+user_cookie = cookie_manager.get(cookie="opb_p3srs_user")
 
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 if "user_info" not in st.session_state:
     st.session_state["user_info"] = None
+
+# Auto-login jika cookie valid ditemukan
+if not st.session_state["logged_in"] and user_cookie:
+    st.session_state["logged_in"] = True
+    st.session_state["user_info"] = user_cookie
+
 if "notif_shown" not in st.session_state:
     st.session_state["notif_shown"] = False
 if "target_focus_id" not in st.session_state:
@@ -409,6 +446,12 @@ if not st.session_state["logged_in"]:
                     st.session_state["logged_in"] = True
                     st.session_state["user_info"] = user_data
                     st.session_state["notif_shown"] = False
+
+                    # Simpan cookie login (aktif selama 7 hari)
+                    cookie_manager.set(
+                        "opb_p3srs_user", user_data, key="set_cookie_login"
+                    )
+
                     st.toast("✅ Login Berhasil!", icon="🎉")
                     st.rerun()
                 else:
@@ -454,6 +497,9 @@ else:
         st.session_state["user_info"] = None
         st.session_state["notif_shown"] = False
         st.session_state["target_focus_id"] = None
+
+        # Hapus cookie saat logout
+        cookie_manager.delete("opb_p3srs_user", key="delete_cookie_logout")
         st.rerun()
 
     st.sidebar.markdown("---")
@@ -487,15 +533,15 @@ else:
         btn_cols = st.columns(min(len(pending_tasks), 4))
         for i, item_task in enumerate(pending_tasks):
             col_idx = i % 4
-        with btn_cols[col_idx]:
-            if st.button(
-                f"👉 Kelola: {item_task['nomor_opb']}",
-                key=f"quick_btn_{item_task['id']}",
-                type="primary",
-                use_container_width=True,
-            ):
-                st.session_state["target_focus_id"] = item_task["id"]
-                st.rerun()
+            with btn_cols[col_idx]:
+                if st.button(
+                    f"👉 Kelola: {item_task['nomor_opb']}",
+                    key=f"quick_btn_{item_task['id']}",
+                    type="primary",
+                    use_container_width=True,
+                ):
+                    st.session_state["target_focus_id"] = item_task["id"]
+                    st.rerun()
         st.markdown("<br>", unsafe_allow_html=True)
 
     # ================= EXECUTIVE DASHBOARD =================
@@ -575,9 +621,7 @@ else:
         col_dash1, col_dash2 = st.columns([1.3, 1])
 
         with col_dash1:
-            st.markdown(
-                "<div class='content-box'>", unsafe_allow_html=True
-            )
+            st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.markdown(
                 "##### 📌 Progress Live Status & Animasi Timeline Berkas"
             )
@@ -656,9 +700,7 @@ else:
             st.markdown("</div>", unsafe_allow_html=True)
 
         with col_dash2:
-            st.markdown(
-                "<div class='content-box'>", unsafe_allow_html=True
-            )
+            st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.markdown("##### 📈 Distribusi Berkas per Tahapan")
 
             status_counts = df_opb["status"].value_counts().reset_index()
@@ -681,9 +723,7 @@ else:
                 yaxis_title=None,
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(
-                    family="Inter, sans-serif", size=12, color="#475569"
-                ),
+                font=dict(family="Inter, sans-serif", size=12, color="#475569"),
                 coloraxis_showscale=False,
             )
             fig.update_traces(
@@ -708,6 +748,15 @@ else:
     # 1. ROLE ENGINEERING
     if role == "Engineering":
         st.header("🔧 Panel Kerja Engineering")
+
+        # Tentukan tab mana yang harus aktif berdasarkan status fokus
+        focus_id = st.session_state.get("target_focus_id")
+        has_pending_eng_verif = any(
+            x["id"] == focus_id
+            for x in st.session_state["db_opb"]
+            if x["status"] == "7. Verifikasi Penerimaan Barang (Engineering)"
+        )
+
         tab1, tab2 = st.tabs(
             [
                 "📝 Buat Form OPB Baru",
@@ -716,9 +765,7 @@ else:
         )
 
         with tab1:
-            st.markdown(
-                "<div class='content-box'>", unsafe_allow_html=True
-            )
+            st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.subheader("Pengajuan OPB Baru")
 
             with st.form(key="form_opb_engineering", clear_on_submit=True):
@@ -753,8 +800,10 @@ else:
                     with st.spinner("Menyimpan berkas ke Supabase..."):
                         file_bytes = file_opb.getvalue()
                         file_name = file_opb.name
-                        
-                        file_url = upload_file_to_supabase(file_bytes, file_name, folder="opb")
+
+                        file_url = upload_file_to_supabase(
+                            file_bytes, file_name, folder="opb"
+                        )
 
                         sig_eng = generate_digital_signature(
                             "Engineering", user_info["name"], nomor_opb
@@ -798,9 +847,7 @@ else:
             st.markdown("</div>", unsafe_allow_html=True)
 
         with tab2:
-            st.markdown(
-                "<div class='content-box'>", unsafe_allow_html=True
-            )
+            st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.subheader(
                 "📦 Serah Terima Barang Masuk dari Purchasing (Penerimaan)"
             )
@@ -811,9 +858,7 @@ else:
                 == "7. Verifikasi Penerimaan Barang (Engineering)"
             ]
             if not items:
-                st.info(
-                    "Tidak ada barang yang menunggu verifikasi penerimaan."
-                )
+                st.info("Tidak ada barang yang menunggu verifikasi penerimaan.")
             for item in items:
                 is_expanded = (
                     st.session_state["target_focus_id"] == item["id"]
@@ -870,9 +915,7 @@ else:
         )
 
         with tab1:
-            st.markdown(
-                "<div class='content-box'>", unsafe_allow_html=True
-            )
+            st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.subheader("OPB Masuk (Perlu Penawaran & Harga Vendor)")
             items = [
                 x
@@ -933,9 +976,7 @@ else:
             st.markdown("</div>", unsafe_allow_html=True)
 
         with tab2:
-            st.markdown(
-                "<div class='content-box'>", unsafe_allow_html=True
-            )
+            st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.subheader("OPB Disetujui BM -> Buat & Upload IOM")
             items = [
                 x
@@ -977,7 +1018,9 @@ else:
                         if file_iom:
                             iom_bytes = file_iom.getvalue()
                             iom_name = file_iom.name
-                            iom_url = upload_file_to_supabase(iom_bytes, iom_name, folder="iom")
+                            iom_url = upload_file_to_supabase(
+                                iom_bytes, iom_name, folder="iom"
+                            )
 
                             sig_pur_iom = generate_digital_signature(
                                 "Purchasing (IOM Draft)",
@@ -1000,16 +1043,14 @@ else:
                             )
                             st.rerun()
                         else:
-                            st.warning("Silakan unggah file IOM terlebih dahulu.")
+                            st.warning(
+                                "Silakan unggah file IOM terlebih dahulu."
+                            )
             st.markdown("</div>", unsafe_allow_html=True)
 
         with tab3:
-            st.markdown(
-                "<div class='content-box'>", unsafe_allow_html=True
-            )
-            st.subheader(
-                "🤝 Serah Terima Barang & Upload BAST ke Engineering"
-            )
+            st.markdown("<div class='content-box'>", unsafe_allow_html=True)
+            st.subheader("🤝 Serah Terima Barang & Upload BAST ke Engineering")
             items = [
                 x
                 for x in st.session_state["db_opb"]
@@ -1045,7 +1086,9 @@ else:
                         key=f"bast_file_{item['id']}",
                     )
 
-                    st.markdown("##### ✍️ Pad Tanda Tangan Penyerah (Purchasing)")
+                    st.markdown(
+                        "##### ✍️ Pad Tanda Tangan Penyerah (Purchasing)"
+                    )
                     render_signature_pad(f"pur_bast_{item['id']}")
 
                     if st.button(
@@ -1057,7 +1100,9 @@ else:
                         if file_bast:
                             bast_bytes = file_bast.getvalue()
                             bast_name = file_bast.name
-                            bast_url = upload_file_to_supabase(bast_bytes, bast_name, folder="bast")
+                            bast_url = upload_file_to_supabase(
+                                bast_bytes, bast_name, folder="bast"
+                            )
                             item["file_bast_url"] = bast_url
                             item["file_bast_name"] = bast_name
 
@@ -1092,9 +1137,7 @@ else:
         )
 
         with tab1:
-            st.markdown(
-                "<div class='content-box'>", unsafe_allow_html=True
-            )
+            st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             items = [
                 x
                 for x in st.session_state["db_opb"]
@@ -1171,9 +1214,7 @@ else:
             st.markdown("</div>", unsafe_allow_html=True)
 
         with tab2:
-            st.markdown(
-                "<div class='content-box'>", unsafe_allow_html=True
-            )
+            st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             items = [
                 x
                 for x in st.session_state["db_opb"]
@@ -1243,7 +1284,9 @@ else:
             ):
                 st.write(f"**Vendor:** {item['vendor']}")
                 st.write(f"**Pengajuan Dana:** Rp {item['harga_estimasi']:,}")
-                st.markdown("📂 **Tinjau Lampiran OPB dari Engineering & IOM:**")
+                st.markdown(
+                    "📂 **Tinjau Lampiran OPB dari Engineering & IOM:**"
+                )
                 render_download_buttons(item, key_prefix="fin_panel")
 
                 st.divider()
@@ -1263,7 +1306,9 @@ else:
                         use_container_width=True,
                     ):
                         sig_fin = generate_digital_signature(
-                            "Finance Officer", user_info["name"], item["nomor_opb"]
+                            "Finance Officer",
+                            user_info["name"],
+                            item["nomor_opb"],
                         )
                         item["status"] = "5. Approval Akhir (BM & P3SRS)"
                         catat_log(
@@ -1312,10 +1357,10 @@ else:
                 expanded=is_expanded,
             ):
                 st.write(f"**Vendor:** {item['vendor']}")
-                st.write(
-                    f"**Total Anggaran:** Rp {item['harga_estimasi']:,}"
+                st.write(f"**Total Anggaran:** Rp {item['harga_estimasi']:,}")
+                st.markdown(
+                    "📂 **Tinjau Dokumen OPB dari Engineering & IOM:**"
                 )
-                st.markdown("📂 **Tinjau Dokumen OPB dari Engineering & IOM:**")
                 render_download_buttons(item, key_prefix="p3srs_panel")
 
                 st.divider()
@@ -1335,7 +1380,9 @@ else:
                         use_container_width=True,
                     ):
                         sig_p3srs = generate_digital_signature(
-                            "Pengurus P3SRS", user_info["name"], item["nomor_opb"]
+                            "Pengurus P3SRS",
+                            user_info["name"],
+                            item["nomor_opb"],
                         )
                         item[
                             "status"
@@ -1365,8 +1412,6 @@ else:
 
                         save_database(item, is_new=False)
                         st.session_state["target_focus_id"] = None
-                        st.toast(
-                            "⚠️ Revisi Dikirim ke Purchasing!", icon="🔄"
-                        )
+                        st.toast("⚠️ Revisi Dikirim ke Purchasing!", icon="🔄")
                         st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
