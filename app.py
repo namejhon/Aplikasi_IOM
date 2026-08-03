@@ -489,16 +489,13 @@ else:
             col_idx = i % 4
             with btn_cols[col_idx]:
                 if st.button(
-                    f"👉 Kelola: {item_task['nomor_opb']}",
-                    key=f"quick_btn_{item_task['id']}",
-                    type="primary",
-                    use_container_width=True,
-                ):
-                    st.session_state["target_focus_id"] = item_task["id"]
-                    st.toast(
-                        f"🎯 Menuju berkas {item_task['nomor_opb']}", icon="⚡"
-                    )
-                    st.rerun()
+            f"👉 Kelola: {item_task['nomor_opb']}",
+            key=f"quick_btn_{item_task['id']}",
+            type="primary",
+            use_container_width=True,
+        ):
+            st.session_state["target_focus_id"] = item_task["id"]
+            st.rerun()  # <--- Tambahkan baris ini di paling bawah
 
         st.markdown("<br>", unsafe_allow_html=True)
 
