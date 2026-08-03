@@ -22,7 +22,6 @@ st.set_page_config(
 )
 
 # --- 1.1 AUTO REFRESH (Polling Realtime Data tiap 5 detik) ---
-# Memastikan update barang dari user lain langsung muncul otomatis
 st_autorefresh(interval=5000, limit=None, key="opb_datarefresh")
 
 # --- INISIALISASI SUPABASE CLIENT ---
@@ -44,14 +43,12 @@ def upload_file_to_supabase(file_bytes, file_name, folder="opb"):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_filename = f"{folder}/{timestamp}_{file_name.replace(' ', '_')}"
 
-        # Upload byte file ke bucket Supabase
         supabase.storage.from_(BUCKET_NAME).upload(
             file=file_bytes,
             path=safe_filename,
             file_options={"content-type": "application/octet-stream"},
         )
 
-        # Ambil URL Publik
         public_url = supabase.storage.from_(BUCKET_NAME).get_public_url(
             safe_filename
         )
@@ -90,17 +87,14 @@ def save_database(item_data, is_new=False):
     try:
         db_payload = item_data.copy()
 
-        # Hapus field bytes yang tidak disimpan di DB
         db_payload.pop("file_opb_bytes", None)
         db_payload.pop("file_iom_bytes", None)
         db_payload.pop("file_bast_bytes", None)
 
-        # Konversi list timeline ke JSON string untuk dipasang di database
         if isinstance(db_payload.get("timeline"), list):
             db_payload["timeline"] = json.dumps(db_payload["timeline"])
 
         if is_new:
-            # Hapus id jika auto-generated oleh Supabase
             db_payload.pop("id", None)
             response = supabase.table("opb_data").insert(db_payload).execute()
         else:
@@ -382,7 +376,6 @@ def cek_notifikasi_user(role):
 # --- 6. INITIALIZATION SESSION STATE BERBASIS SUPABASE & COOKIE ---
 st.session_state["db_opb"] = load_database()
 
-# Inisialisasi Cookie Manager agar login bertahan saat refresh
 cookie_manager = stx.CookieManager(key="my_cookie_manager")
 user_cookie = cookie_manager.get("opb_p3srs_user")
 
@@ -391,7 +384,6 @@ if "logged_in" not in st.session_state:
 if "user_info" not in st.session_state:
     st.session_state["user_info"] = None
 
-# Auto-login jika cookie valid ditemukan
 if not st.session_state["logged_in"] and user_cookie:
     st.session_state["logged_in"] = True
     st.session_state["user_info"] = user_cookie
@@ -447,7 +439,6 @@ if not st.session_state["logged_in"]:
                     st.session_state["user_info"] = user_data
                     st.session_state["notif_shown"] = False
 
-                    # Simpan cookie login (aktif selama 7 hari)
                     cookie_manager.set(
                         "opb_p3srs_user", user_data, key="set_cookie_login"
                     )
@@ -498,7 +489,6 @@ else:
         st.session_state["notif_shown"] = False
         st.session_state["target_focus_id"] = None
 
-        # Hapus cookie saat logout
         cookie_manager.delete("opb_p3srs_user", key="delete_cookie_logout")
         st.rerun()
 
@@ -541,7 +531,15 @@ else:
                     use_container_width=True,
                 ):
                     st.session_state["target_focus_id"] = item_task["id"]
-                    st.rerun()
+                    # Auto-scroll JS ke elemen target
+                    components.html(
+                        """
+                        <script>
+                            window.parent.document.getElementById("anchor-kelola-opb").scrollIntoView({behavior: "smooth"});
+                        </script>
+                        """,
+                        height=0,
+                    )
         st.markdown("<br>", unsafe_allow_html=True)
 
     # ================= EXECUTIVE DASHBOARD =================
@@ -743,13 +741,15 @@ else:
 
     st.markdown("---")
 
+    # ==================== TARGET ANCHOR LOKASI KELOLA ====================
+    st.markdown('<div id="anchor-kelola-opb"></div>', unsafe_allow_html=True)
+
     # ==================== MODUL USER PANELS ====================
 
     # 1. ROLE ENGINEERING
     if role == "Engineering":
         st.header("🔧 Panel Kerja Engineering")
 
-        # Tentukan tab mana yang harus aktif berdasarkan status fokus
         focus_id = st.session_state.get("target_focus_id")
         has_pending_eng_verif = any(
             x["id"] == focus_id
