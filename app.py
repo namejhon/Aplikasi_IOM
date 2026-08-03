@@ -488,7 +488,7 @@ else:
         for i, item_task in enumerate(pending_tasks):
             col_idx = i % 4
             with btn_cols[col_idx]:
-                if st.button(
+        if st.button(
             f"👉 Kelola: {item_task['nomor_opb']}",
             key=f"quick_btn_{item_task['id']}",
             type="primary",
