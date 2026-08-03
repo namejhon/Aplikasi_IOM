@@ -485,9 +485,9 @@ else:
         )
 
         btn_cols = st.columns(min(len(pending_tasks), 4))
-        for i, item_task in enumerate(pending_tasks):
-            col_idx = i % 4
-            with btn_cols[col_idx]:
+       for i, item_task in enumerate(pending_tasks):
+    col_idx = i % 4
+    with btn_cols[col_idx]:
         if st.button(
             f"👉 Kelola: {item_task['nomor_opb']}",
             key=f"quick_btn_{item_task['id']}",
@@ -495,8 +495,7 @@ else:
             use_container_width=True,
         ):
             st.session_state["target_focus_id"] = item_task["id"]
-            st.rerun()  # <--- Tambahkan baris ini di paling bawah
-
+            st.rerun()
         st.markdown("<br>", unsafe_allow_html=True)
 
     # ================= EXECUTIVE DASHBOARD =================
