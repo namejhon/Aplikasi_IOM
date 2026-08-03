@@ -383,8 +383,8 @@ def cek_notifikasi_user(role):
 st.session_state["db_opb"] = load_database()
 
 # Inisialisasi Cookie Manager agar login bertahan saat refresh
-cookie_manager = stx.get_cookie_manager()
-user_cookie = cookie_manager.get(cookie="opb_p3srs_user")
+cookie_manager = stx.CookieManager(key="my_cookie_manager")
+user_cookie = cookie_manager.get("opb_p3srs_user")
 
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
