@@ -784,7 +784,7 @@ else:
 
             with st.form(key="form_opb_engineering", clear_on_submit=True):
                 nomor_opb = st.text_input(
-                    "Nomor OPB P3SRS",
+                    "Nomor OPB ",
                     f"OPB/{datetime.now().strftime('%Y%m%d/%H%M')}",
                 )
                 nama_barang = st.text_input(
@@ -799,7 +799,7 @@ else:
                     placeholder="Tuliskan alasan kebutuhan dan spesifikasi...",
                 )
                 file_opb = st.file_uploader(
-                    "Unggah Dokumen Lampiran OPB (PDF/Word/Excel)",
+                    "Unggah Dokumen Lampiran BA (PDF/Word/Excel)",
                     type=["pdf", "docx", "xlsx"],
                 )
 
