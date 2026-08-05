@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import io
 import json
 import os
 from datetime import datetime
@@ -10,6 +11,10 @@ import pytz
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from streamlit_autorefresh import st_autorefresh
 from supabase import Client, create_client
 
@@ -108,6 +113,154 @@ def save_database(item_data, is_new=False):
         return response
     except Exception as e:
         st.error(f"Gagal menyimpan ke Supabase: {e}")
+
+
+# --- 2.1 FUNGSI GENERATE EKSPOR EXCEL & PDF ---
+def generate_excel_report(data_list):
+    """Mengonversi data OPB ke file Excel menggunakan BytesIO."""
+    output = io.BytesIO()
+    export_data = []
+
+    for idx, item in enumerate(data_list, start=1):
+        export_data.append({
+            "No": idx,
+            "Nomor OPB": item.get("nomor_opb", "-"),
+            "Nama Barang / Pekerjaan": item.get("nama_barang", "-"),
+            "Jumlah": item.get("jumlah", 0),
+            "Vendor": item.get("vendor", "-"),
+            "Estimasi Harga (Rp)": item.get("harga_estimasi", 0),
+            "Status Terkini": item.get("status", "-"),
+            "Keterangan": item.get("keterangan", "-"),
+        })
+
+    df = pd.DataFrame(export_data)
+
+    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+        df.to_excel(writer, index=False, sheet_name="Laporan OPB")
+        workbook = writer.book
+        worksheet = writer.sheets["Laporan OPB"]
+
+        # Formating Currency & Header
+        format_currency = workbook.add_format({"num_format": "Rp #,##0"})
+        format_header = workbook.add_format({
+            "bold": True,
+            "bg_color": "#1e1b4b",
+            "font_color": "#ffffff",
+            "border": 1,
+        })
+
+        for col_num, value in enumerate(df.columns.values):
+            worksheet.write(0, col_num, value, format_header)
+            worksheet.set_column(col_num, col_num, 18)
+
+        worksheet.set_column("F:F", 20, format_currency)
+
+    output.seek(0)
+    return output
+
+
+def generate_pdf_report(data_list):
+    """Mengonversi data OPB ke dokumen PDF Landscape menggunakan ReportLab."""
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=landscape(A4),
+        rightMargin=20,
+        leftMargin=20,
+        topMargin=20,
+        bottomMargin=20,
+    )
+
+    elements = []
+    styles = getSampleStyleSheet()
+
+    title_style = ParagraphStyle(
+        "TitleStyle",
+        parent=styles["Heading1"],
+        fontSize=16,
+        leading=20,
+        textColor=colors.HexColor("#1e1b4b"),
+        alignment=0,
+    )
+
+    sub_style = ParagraphStyle(
+        "SubStyle",
+        parent=styles["Normal"],
+        fontSize=9,
+        leading=12,
+        textColor=colors.HexColor("#64748b"),
+    )
+
+    cell_style = ParagraphStyle(
+        "CellStyle",
+        parent=styles["Normal"],
+        fontSize=8,
+        leading=10,
+        wordWrap="CJK",
+    )
+
+    cell_header_style = ParagraphStyle(
+        "HeaderStyle",
+        parent=styles["Normal"],
+        fontSize=8,
+        leading=10,
+        bold=True,
+        textColor=colors.white,
+    )
+
+    wib = pytz.timezone("Asia/Jakarta")
+    waktu_cetak = datetime.now(wib).strftime("%d/%m/%Y %H:%M:%S WIB")
+
+    elements.append(Paragraph("<b>LAPORAN REKAPITULASI OPB & IOM - P3SRS</b>", title_style))
+    elements.append(Paragraph(f"Dicetak pada: {waktu_cetak} | Total Berkas: {len(data_list)}", sub_style))
+    elements.append(Spacer(1, 15))
+
+    # Header Tabel PDF
+    table_data = [[
+        Paragraph("<b>No</b>", cell_header_style),
+        Paragraph("<b>Nomor OPB</b>", cell_header_style),
+        Paragraph("<b>Nama Barang / Pekerjaan</b>", cell_header_style),
+        Paragraph("<b>Qty</b>", cell_header_style),
+        Paragraph("<b>Vendor</b>", cell_header_style),
+        Paragraph("<b>Estimasi Harga</b>", cell_header_style),
+        Paragraph("<b>Status Terkini</b>", cell_header_style),
+    ]]
+
+    for idx, item in enumerate(data_list, start=1):
+        harga_fmt = f"Rp {item.get('harga_estimasi', 0):,}"
+        table_data.append([
+            Paragraph(str(idx), cell_style),
+            Paragraph(str(item.get("nomor_opb", "-")), cell_style),
+            Paragraph(str(item.get("nama_barang", "-")), cell_style),
+            Paragraph(str(item.get("jumlah", 0)), cell_style),
+            Paragraph(str(item.get("vendor", "-")), cell_style),
+            Paragraph(harga_fmt, cell_style),
+            Paragraph(str(item.get("status", "-")), cell_style),
+        ])
+
+    pdf_table = Table(
+        table_data,
+        colWidths=[30, 110, 200, 35, 120, 100, 185],
+    )
+
+    pdf_table.setStyle(
+        TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e1b4b")),
+            ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f8fafc")]),
+        ])
+    )
+
+    elements.append(pdf_table)
+    doc.build(elements)
+
+    buffer.seek(0)
+    return buffer
 
 
 # --- 3. RESPONSIVE CUSTOM CSS (OPTIMIZED FOR MOBILE & DESKTOP) ---
@@ -626,6 +779,31 @@ else:
                 </div>
             """,
                 unsafe_allow_html=True,
+            )
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # --- FITUR DOWLOAD REKAPITULASI EXCEL & PDF ---
+        col_exp1, col_exp2 = st.columns(2)
+        with col_exp1:
+            excel_data = generate_excel_report(st.session_state["db_opb"])
+            st.download_button(
+                label="📊 Unduh Rekap Laporan (Excel .xlsx)",
+                data=excel_data,
+                file_name=f"Laporan_OPB_P3SRS_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                key="btn_export_excel",
+            )
+        with col_exp2:
+            pdf_data = generate_pdf_report(st.session_state["db_opb"])
+            st.download_button(
+                label="📄 Unduh Rekap Laporan (PDF)",
+                data=pdf_data,
+                file_name=f"Laporan_OPB_P3SRS_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+                key="btn_export_pdf",
             )
 
         st.markdown("<br>", unsafe_allow_html=True)
