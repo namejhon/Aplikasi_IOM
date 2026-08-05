@@ -11,3 +11,4 @@ supabase
 pandas
 plotly
 reportlab
+xlsxwriter
