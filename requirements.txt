@@ -10,3 +10,4 @@ streamlit-autorefresh
 supabase
 pandas
 plotly
+reportlab
