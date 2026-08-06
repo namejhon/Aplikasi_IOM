@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import io
 import json
 import os
 from datetime import datetime
@@ -128,7 +129,7 @@ def calculate_budget_summary(data_list):
     budget_usage = {div: 0 for div in INITIAL_BUDGETS}
     for item in data_list:
         div = item.get("divisi", "IT")
-        # Budget terpotong jika OPB berada pada tahap setelah disetujui
+        # Budget terpotong jika OPB berada pada tahap setelah disetujui P3SRS
         if item.get("status") in [
             "6. Serah Terima Barang (Purchasing -> Engineering)",
             "7. Verifikasi Penerimaan Barang (Engineering)",
@@ -148,6 +149,15 @@ def calculate_budget_summary(data_list):
             "sisa": sisa
         }
     return summary
+
+
+def convert_df_to_excel(df):
+    """Mengonversi DataFrame Pandas ke bentuk byte Excel (.xlsx)."""
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Detail Potongan Budget')
+    processed_data = output.getvalue()
+    return processed_data
 
 
 # --- 3. RESPONSIVE CUSTOM CSS ---
@@ -538,6 +548,70 @@ else:
                     st.caption(f"Terpakai: Rp {b_info['terpakai']:,}")
                     sisa_color = "green" if b_info['sisa'] > 0 else "red"
                     st.markdown(f"<span style='color:{sisa_color}; font-weight:bold; font-size:12px;'>Sisa: Rp {b_info['sisa']:,}</span>", unsafe_allow_html=True)
+
+        # ================= FITUR EKSKLUSIF FINANCE & P3SRS: DETAIL POTONGAN & EKSPOR EXCEL =================
+        if role in ["Finance", "P3SRS"]:
+            st.markdown("<br>", unsafe_allow_html=True)
+            with st.expander("📊 **RINCIAN MUTASI POTONGAN ANGGARAN & EKSPOR EXCEL (KHUSUS FINANCE & P3SRS)**", expanded=True):
+                # Filter item yang sudah memotong budget
+                items_potongan = [
+                    x for x in st.session_state["db_opb"]
+                    if x.get("status") in [
+                        "6. Serah Terima Barang (Purchasing -> Engineering)",
+                        "7. Verifikasi Penerimaan Barang (Engineering)",
+                        "8. Selesai",
+                    ]
+                ]
+
+                if items_potongan:
+                    rows = []
+                    for item in items_potongan:
+                        # Mengambil tanggal persetujuan terakhir dari timeline jika ada
+                        last_date = "-"
+                        if item.get("timeline"):
+                            last_date = item["timeline"][-1].get("waktu", "-")
+
+                        rows.append({
+                            "No OPB": item.get("nomor_opb", "-"),
+                            "Divisi Pemohon": item.get("divisi", "-"),
+                            "Rincian Barang/Pengajuan": item.get("nama_barang", "-"),
+                            "Vendor": item.get("vendor", "-"),
+                            "Nilai Potongan (Rp)": item.get("harga_estimasi", 0),
+                            "Status": item.get("status", "-"),
+                            "Tanggal Disetujui": last_date
+                        })
+
+                    df_potongan = pd.DataFrame(rows)
+
+                    # Tampilkan tabel di dashboard
+                    st.dataframe(
+                        df_potongan.style.format({"Nilai Potongan (Rp)": "Rp {:,.0f}"}),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+
+                    # Tombol Ekspor
+                    col_exp1, col_exp2 = st.columns([1, 4])
+                    with col_exp1:
+                        excel_data = convert_df_to_excel(df_potongan)
+                        st.download_button(
+                            label="📥 Export Ke Excel (.xlsx)",
+                            data=excel_data,
+                            file_name=f"Laporan_Potongan_Budget_P3SRS_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True,
+                            type="primary"
+                        )
+                    with col_exp2:
+                        csv_data = df_potongan.to_csv(index=False).encode('utf-8')
+                        st.download_button(
+                            label="📄 Export Ke CSV",
+                            data=csv_data,
+                            file_name=f"Laporan_Potongan_Budget_P3SRS_{datetime.now().strftime('%Y%m%d')}.csv",
+                            mime="text/csv",
+                        )
+                else:
+                    st.info("ℹ️ Belum ada pengajuan OPB/IOM yang disetujui (memotong budget).")
 
         st.markdown("<br>", unsafe_allow_html=True)
 
