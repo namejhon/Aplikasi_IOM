@@ -105,21 +105,7 @@ def save_database(item_data, is_new=False):
             "nomor_opb": str(item_data.get("nomor_opb", "")),
             "jumlah": int(item_data.get("jumlah", 1)),
             "keterangan": str(item_data.get("keterangan", "") or ""),
-            "divisi": str(item_data.get("divisi", "IT")),
-            "urgensi": str(item_data.get("urgensi", "Normal")),
-            "status": str(item_data.get("status", "1. Penawaran Purchasing")),
-            "harga_estimasi": int(item_data.get("harga_estimasi", 0) or 0),
-            "vendor": str(item_data.get("vendor", "-")),
-            "file_opb_url": item_data.get("file_opb_url"),
-            "file_opb_name": str(item_data.get("file_opb_name", "-")),
-            "file_iom_url": item_data.get("file_iom_url"),
-            "file_iom_name": str(item_data.get("file_iom_name", "-")),
-            "file_bast_url": item_data.get("file_bast_url"),
-            "file_bast_name": str(item_data.get("file_bast_name", "-")),
-            "catatan_bm": str(item_data.get("catatan_bm", "-")),
-            "catatan_finance": str(item_data.get("catatan_finance", "-")),
-            "catatan_p3srs": str(item_data.get("catatan_p3srs", "-")),
-            "timeline": json.dumps(item_data.get("timeline", [])) if isinstance(item_data.get("timeline"), list) else item_data.get("timeline", "[]")
+            "timeline": json.dumps(item_data.get("timeline", [])),
         }
 
         # Tambahkan kolom id jika proses update
@@ -225,25 +211,76 @@ st.markdown(
         border: 1px solid #e2e8f0; box-shadow: 0 4px 15px -3px rgba(0,0,0,0.03); margin-bottom: 20px;
     }
 
-    .timeline-container { position: relative; padding-left: 20px; margin: 15px 0 10px 5px; border-left: 3px solid #e2e8f0; }
+    /* Container Garis Vertikal Timeline */
+    .timeline-container { 
+        position: relative; 
+        padding-left: 20px; 
+        margin: 15px 0 10px 5px; 
+        border-left: 3px solid #e2e8f0; 
+    }
+
+    /* Card Item Timeline */
     .timeline-card {
-        position: relative; background: #ffffff; border: 1px solid #e2e8f0;
-        border-radius: 12px; padding: 12px 16px; margin-bottom: 14px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03); transition: all 0.2s ease;
+        position: relative; 
+        background: #ffffff; 
+        border: 1px solid #e2e8f0;
+        border-radius: 12px; 
+        padding: 12px 16px; 
+        margin-bottom: 14px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03); 
+        transition: all 0.2s ease;
     }
-    .timeline-card:hover { border-color: #818cf8; }
+    .timeline-card:hover { 
+        border-color: #818cf8; 
+    }
+
+    /* Titik Indikator Lingkaran pada Garis */
     .timeline-card::before {
-        content: ''; position: absolute; left: -27px; top: 16px; width: 12px; height: 12px;
-        border-radius: 50%; background-color: #6366f1; border: 3px solid #ffffff;
+        content: ''; 
+        position: absolute; 
+        left: -27px; 
+        top: 16px; 
+        width: 12px; 
+        height: 12px;
+        border-radius: 50%; 
+        background-color: #6366f1; 
+        border: 3px solid #ffffff;
     }
+
+    /* Badge Waktu / Timestamp */
     .timeline-time {
-        display: inline-flex; align-items: center; background: #e0e7ff;
-        color: #3730a3; font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 10px; margin-bottom: 6px;
+        display: inline-flex; 
+        align-items: center; 
+        background: #e0e7ff;
+        color: #3730a3; 
+        font-size: 10.5px; 
+        font-weight: 700; 
+        padding: 2px 8px; 
+        border-radius: 10px; 
+        margin-bottom: 6px;
     }
-    .timeline-desc { color: #0f172a; font-size: 13px; font-weight: 500; line-height: 1.4; margin: 0; }
+
+    /* Teks Deskripsi Activity */
+    .timeline-desc { 
+        color: #0f172a; 
+        font-size: 13px; 
+        font-weight: 500; 
+        line-height: 1.4; 
+        margin: 0; 
+    }
+
+    /* Badge Tanda Tangan Digital (Digital Signature) */
     .digital-signature-badge {
-        display: inline-block; background: #ecfdf5; border: 1px dashed #10b981;
-        color: #047857; font-size: 10.5px; padding: 3px 8px; border-radius: 6px; margin-top: 6px; font-family: monospace; word-break: break-all;
+        display: inline-block; 
+        background: #ecfdf5; 
+        border: 1px dashed #10b981;
+        color: #047857; 
+        font-size: 10.5px; 
+        padding: 3px 8px; 
+        border-radius: 6px; 
+        margin-top: 6px; 
+        font-family: monospace; 
+        word-break: break-all;
     }
 
     @media (max-width: 768px) {
@@ -290,6 +327,44 @@ def catat_log(item, pesan, digital_sig=None):
     if "timeline" not in item or not isinstance(item["timeline"], list):
         item["timeline"] = []
     item["timeline"].append(log_entry)
+
+def render_timeline(timeline_list):
+    """Menerima list dictionary timeline dan menampilkannya sesuai desain UI."""
+    if not timeline_list:
+        st.caption("Belum ada riwayat aktivitas.")
+        return
+
+    st.markdown("<div class='timeline-container'>", unsafe_allow_html=True)
+
+    for log_entry in timeline_list:
+        if isinstance(log_entry, dict):
+            waktu_log = log_entry.get("waktu", "")
+            pesan_log = log_entry.get("pesan", "")
+            sig = log_entry.get("signature", None)
+        else:
+            waktu_log = "Log"
+            pesan_log = str(log_entry)
+            sig = None
+
+        sig_badge_html = ""
+        if sig:
+            sig_badge_html = f"""
+            <br><span class="digital-signature-badge">
+                🔏 Signed by <b>{sig.get('signed_by', '-')}</b> ({sig.get('role', '-')}) | {sig.get('hash', '-')}
+            </span>
+            """
+
+        st.markdown(
+            f"""
+            <div class="timeline-card">
+                <span class="timeline-time">⏱️ {waktu_log}</span>
+                <p class="timeline-desc">{pesan_log}{sig_badge_html}</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
 def render_download_buttons(item, key_prefix="dl"):
     col1, col2, col3 = st.columns([1, 1, 1])
@@ -667,24 +742,10 @@ else:
                 render_download_buttons(item, key_prefix=f"dash_{idx}")
 
                 timeline_list = item.get("timeline", [])
-                with st.expander(f"📜 Timeline & Jejak Verifikasi ({len(timeline_list)} Aktivitas)"):
-                    if timeline_list:
-                        st.markdown("<div class='timeline-container'>", unsafe_allow_html=True)
-                        for log_entry in timeline_list:
-                            if isinstance(log_entry, dict):
-                                waktu_log = log_entry.get("waktu", "")
-                                pesan_log = log_entry.get("pesan", "")
-                                sig = log_entry.get("signature", None)
-                            else:
-                                waktu_log = "Log"
-                                pesan_log = str(log_entry)
-                                sig = None
-
-                            sig_badge_html = f'<br><span class="digital-signature-badge">🔏 Signed by <b>{sig["signed_by"]}</b> ({sig["role"]}) | {sig["hash"]}</span>' if sig else ""
-                            st.markdown(f'<div class="timeline-card"><span class="timeline-time">⏱️ {waktu_log}</span><p class="timeline-desc">{pesan_log}{sig_badge_html}</p></div>', unsafe_allow_html=True)
-                        st.markdown("</div>", unsafe_allow_html=True)
-                    else:
-                        st.caption("📍 *Berkas baru diajukan oleh Engineering dan menunggu proses Penawaran Purchasing.*")
+                with st.expander(
+                    f"📜 Timeline & Jejak Verifikasi ({len(timeline_list)} Aktivitas)"
+                ):
+                    render_timeline(timeline_list)
 
                 st.markdown("<hr style='margin:12px 0;'>", unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
@@ -803,17 +864,6 @@ else:
                             file_url = upload_file_to_supabase(file_bytes, file_name, folder="opb")
 
                         sig_eng = generate_digital_signature("Engineering", user_info["name"], nomor_opb_auto)
-                        
-                        wib = pytz.timezone("Asia/Jakarta")
-                        waktu_sekarang = datetime.now(wib).strftime("%d/%m/%Y %H:%M:%S")
-                        
-                        # Inisialisasi data timeline awal secara langsung
-                        initial_timeline = [{
-                            "waktu": waktu_sekarang,
-                            "pesan": f"Pengajuan OPB Baru diajukan oleh {user_info['name']} untuk Divisi {divisi_pilihan} ({urgensi}). Menunggu penawaran dari Purchasing.",
-                            "signature": sig_eng
-                        }]
-
                         data_baru = {
                             "nomor_opb": nomor_opb_auto,
                             "divisi": divisi_pilihan,
@@ -834,13 +884,16 @@ else:
                             "catatan_finance": "-",
                             "catatan_p3srs": "-",
                             "status": "1. Penawaran Purchasing",
-                            "timeline": initial_timeline,
+                            "timeline": [],
                         }
+                        catat_log(
+                            data_baru,
+                            f"OPB Dibuat untuk Divisi {divisi_pilihan} ({urgensi}) oleh {user_info['name']}",
+                            digital_sig=sig_eng,
+                        )
 
                         res = save_database(data_baru, is_new=True)
                         if res:
-                            st.success("✅ Berkas berhasil diajukan!")
-                            st.info("🔔 Notifikasi telah dikirimkan ke tim Purchasing untuk diproses.")
                             st.toast("🚀 OPB Berhasil diteruskan ke Purchasing!", icon="✅")
                             st.rerun()
                 else:
