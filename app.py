@@ -73,7 +73,7 @@ def upload_file_to_supabase(file_bytes, file_name, folder="opb"):
 
 
 def load_database():
-    """Membaca seluruh data OPB dari tabel Supabase."""
+    """Membaca seluruh data OPB dari tabel Supabase dengan Sanitasi Data."""
     try:
         response = (
             supabase.table("opb_data")
@@ -82,7 +82,9 @@ def load_database():
             .execute()
         )
         data = response.data
+        
         for item in data:
+            # Parse timeline jika berwujud string JSON
             if isinstance(item.get("timeline"), str):
                 try:
                     item["timeline"] = json.loads(item["timeline"])
@@ -90,6 +92,21 @@ def load_database():
                     item["timeline"] = []
             elif item.get("timeline") is None:
                 item["timeline"] = []
+
+            # Defaulting Status jika NULL atau Kosong
+            if not item.get("status"):
+                item["status"] = "1. Penawaran Purchasing"
+
+            # Defaulting Nilai Tambahan jika NULL
+            if not item.get("divisi"):
+                item["divisi"] = "IT"
+            if not item.get("urgensi"):
+                item["urgensi"] = "Normal"
+            if item.get("harga_estimasi") is None:
+                item["harga_estimasi"] = 0
+            if not item.get("vendor"):
+                item["vendor"] = "-"
+
         return data
     except Exception as e:
         st.error(f"Gagal memuat database dari Supabase: {e}")
@@ -97,18 +114,27 @@ def load_database():
 
 
 def save_database(item_data, is_new=False):
-    """Menyimpan item ke Supabase (Sesuaikan payload dengan skema kolom opb_data)."""
+    """Menyimpan item ke Supabase dengan menyelaraskan seluruh field data."""
     try:
-        # Gunakan payload yang dipetakan langsung ke nama kolom Supabase
         db_payload = {
             "nama_barang": str(item_data.get("nama_barang", "")),
             "nomor_opb": str(item_data.get("nomor_opb", "")),
             "jumlah": int(item_data.get("jumlah", 1)),
             "keterangan": str(item_data.get("keterangan", "") or ""),
+            "divisi": str(item_data.get("divisi", "IT")),
+            "urgensi": str(item_data.get("urgensi", "Normal")),
+            "status": str(item_data.get("status", "1. Penawaran Purchasing")),
+            "harga_estimasi": int(item_data.get("harga_estimasi", 0) or 0),
+            "vendor": str(item_data.get("vendor", "-")),
+            "file_opb_url": item_data.get("file_opb_url"),
+            "file_iom_url": item_data.get("file_iom_url"),
+            "file_bast_url": item_data.get("file_bast_url"),
+            "catatan_bm": str(item_data.get("catatan_bm", "-")),
+            "catatan_finance": str(item_data.get("catatan_finance", "-")),
+            "catatan_p3srs": str(item_data.get("catatan_p3srs", "-")),
             "timeline": json.dumps(item_data.get("timeline", [])),
         }
 
-        # Tambahkan kolom id jika proses update
         if not is_new and "id" in item_data:
             db_payload["id"] = item_data["id"]
 
@@ -443,7 +469,7 @@ def cek_notifikasi_user(role):
     pending_items = []
 
     if role == "Purchasing":
-        pending_items = [x for x in db if x.get("status") in ["1. Penawaran Purchasing", "3. Pembuatan IOM (Purchasing)", "6. Serah Terima Barang (Purchasing -> Engineering)", "Revisi BM (OPB)", "Revisi Finance", "Revisi BM/P3SRS (IOM)"]]
+        pending_items = [x for x in db if x.get("status") in ["1. Penawaran Purchasing", "3. Pembuatan IOM (Purchasing)", "6. Serah Terima Barang (Purchasing -> Engineering)", "Revisi BM (OPB)", "Revisi Finance", "Revisi BM/P3SRS (IOM)"] or not x.get("status")]
     elif role == "BM (Building Manager)":
         pending_items = [x for x in db if x.get("status") in ["2. Review BM", "5. Approval Akhir (BM & P3SRS)"]]
     elif role == "Finance":
@@ -615,7 +641,6 @@ else:
     if total_opb > 0:
         df_opb = pd.DataFrame(st.session_state["db_opb"])
         
-        # Penanganan fallback jika kolom belum ada pada seluruh objek
         if "status" not in df_opb.columns:
             df_opb["status"] = "1. Penawaran Purchasing"
         if "harga_estimasi" not in df_opb.columns:
@@ -799,24 +824,20 @@ else:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.subheader("Pengajuan OPB Baru")
 
-            # --- SELECTBOX DIVISI OUTSIDE FORM FOR REALTIME DYNAMIC UPDATE ---
             divisi_pilihan = st.selectbox(
                 "Divisi Pemohon",
                 DIVISI_LIST,
                 key="select_divisi_pemohon"
             )
 
-            # Menampilkan Sisa Budget Divisi yang Dipilih
             budget_div_info = budget_summary.get(divisi_pilihan, {"sisa": 1_000_000_000})
             sisa_formatted = f"Rp {budget_div_info['sisa']:,}"
             st.info(f"💰 **Sisa Budget Terkini Divisi {divisi_pilihan}:** {sisa_formatted}")
 
-            # --- GENERATE NOMOR OPB OTOMATIS DAN READ-ONLY (BERURUT GLOBAL) ---
             next_number = len(st.session_state["db_opb"]) + 1
             code_div = divisi_pilihan.upper().replace(" ", "")
             nomor_opb_auto = f"OPB/{code_div}/{next_number:03d}"
 
-            # NOMOR OPB DIPASANG OUTSIDE FORM (DISABLED = TIDAK BISA DIUBAH)
             st.text_input(
                 "Nomor OPB (Otomatis)",
                 value=nomor_opb_auto,
@@ -903,7 +924,7 @@ else:
         with tab2:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.subheader("📦 Serah Terima Barang Masuk dari Purchasing (Penerimaan)")
-            items = [x for x in st.session_state["db_opb"] if x.get("status") == "7. Verifikasi Penerimaan Barang (Engineering)"]
+            items = [x for x in st.session_state["db_opb"] if str(x.get("status")).strip() == "7. Verifikasi Penerimaan Barang (Engineering)"]
             if not items:
                 st.info("Tidak ada barang yang menunggu verifikasi penerimaan.")
             for item in items:
@@ -934,7 +955,13 @@ else:
         with tab1:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.subheader("OPB Masuk (Perlu Penawaran & Harga Vendor)")
-            items = [x for x in st.session_state["db_opb"] if x.get("status") in ["1. Penawaran Purchasing", "Revisi BM (OPB)"]]
+            
+            items = [
+                x for x in st.session_state["db_opb"]
+                if str(x.get("status")).strip() in ["1. Penawaran Purchasing", "Revisi BM (OPB)"]
+                or not x.get("status")
+            ]
+
             if not items:
                 st.info("Tidak ada tugas penawaran barang saat ini.")
             for item in items:
@@ -970,7 +997,7 @@ else:
         with tab2:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.subheader("OPB Disetujui BM -> Buat & Upload IOM")
-            items = [x for x in st.session_state["db_opb"] if x.get("status") in ["3. Pembuatan IOM (Purchasing)", "Revisi Finance", "Revisi BM/P3SRS (IOM)"]]
+            items = [x for x in st.session_state["db_opb"] if str(x.get("status")).strip() in ["3. Pembuatan IOM (Purchasing)", "Revisi Finance", "Revisi BM/P3SRS (IOM)"]]
             if not items:
                 st.info("Tidak ada IOM yang perlu dibuat/direvisi.")
             for item in items:
@@ -1003,7 +1030,7 @@ else:
         with tab3:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.subheader("🤝 Serah Terima Barang & Upload BAST ke Engineering")
-            items = [x for x in st.session_state["db_opb"] if x.get("status") in ["6. Pembelian Barang (Purchasing)", "6. Serah Terima Barang (Purchasing -> Engineering)"]]
+            items = [x for x in st.session_state["db_opb"] if str(x.get("status")).strip() in ["6. Pembelian Barang (Purchasing)", "6. Serah Terima Barang (Purchasing -> Engineering)"]]
             if not items:
                 st.info("Belum ada barang yang perlu diserahterimakan.")
             for item in items:
@@ -1042,7 +1069,7 @@ else:
 
         with tab1:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
-            items = [x for x in st.session_state["db_opb"] if x.get("status") == "2. Review BM"]
+            items = [x for x in st.session_state["db_opb"] if str(x.get("status")).strip() == "2. Review BM"]
             if not items:
                 st.info("Tidak ada OPB baru menunggu persetujuan.")
             for item in items:
@@ -1080,7 +1107,7 @@ else:
 
         with tab2:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
-            items = [x for x in st.session_state["db_opb"] if x.get("status") == "5. Approval Akhir (BM & P3SRS)"]
+            items = [x for x in st.session_state["db_opb"] if str(x.get("status")).strip() == "5. Approval Akhir (BM & P3SRS)"]
             if not items:
                 st.info("Tidak ada IOM menunggu persetujuan final.")
             for item in items:
@@ -1106,7 +1133,7 @@ else:
     elif role == "Finance":
         st.header("💰 Panel Finance & Budgeting")
         st.markdown("<div class='content-box'>", unsafe_allow_html=True)
-        items = [x for x in st.session_state["db_opb"] if x.get("status") == "4. Review Finance"]
+        items = [x for x in st.session_state["db_opb"] if str(x.get("status")).strip() == "4. Review Finance"]
         if not items:
             st.info("Tidak ada IOM yang membutuhkan verifikasi Finance saat ini.")
         for item in items:
@@ -1150,7 +1177,7 @@ else:
     elif role == "P3SRS":
         st.header("🏛️ Panel P3SRS (Approval Akhir & Pemotongan Budget)")
         st.markdown("<div class='content-box'>", unsafe_allow_html=True)
-        items = [x for x in st.session_state["db_opb"] if x.get("status") == "5. Approval Akhir (BM & P3SRS)"]
+        items = [x for x in st.session_state["db_opb"] if str(x.get("status")).strip() == "5. Approval Akhir (BM & P3SRS)"]
         if not items:
             st.info("Tidak ada IOM yang menunggu persetujuan P3SRS.")
         for item in items:
