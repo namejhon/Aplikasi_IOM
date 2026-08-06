@@ -129,7 +129,6 @@ def calculate_budget_summary(data_list):
     budget_usage = {div: 0 for div in INITIAL_BUDGETS}
     for item in data_list:
         div = item.get("divisi", "IT")
-        # Budget terpotong jika OPB berada pada tahap setelah disetujui P3SRS
         if item.get("status") in [
             "6. Serah Terima Barang (Purchasing -> Engineering)",
             "7. Verifikasi Penerimaan Barang (Engineering)",
@@ -549,11 +548,10 @@ else:
                     sisa_color = "green" if b_info['sisa'] > 0 else "red"
                     st.markdown(f"<span style='color:{sisa_color}; font-weight:bold; font-size:12px;'>Sisa: Rp {b_info['sisa']:,}</span>", unsafe_allow_html=True)
 
-        # ================= FITUR EKSKLUSIF FINANCE & P3SRS: DETAIL POTONGAN & EKSPOR EXCEL =================
+        # ================= FITUR EKSKLUSIF FINANCE & P3SRS =================
         if role in ["Finance", "P3SRS"]:
             st.markdown("<br>", unsafe_allow_html=True)
             with st.expander("📊 **RINCIAN MUTASI POTONGAN ANGGARAN & EKSPOR EXCEL (KHUSUS FINANCE & P3SRS)**", expanded=True):
-                # Filter item yang sudah memotong budget
                 items_potongan = [
                     x for x in st.session_state["db_opb"]
                     if x.get("status") in [
@@ -566,7 +564,6 @@ else:
                 if items_potongan:
                     rows = []
                     for item in items_potongan:
-                        # Mengambil tanggal persetujuan terakhir dari timeline jika ada
                         last_date = "-"
                         if item.get("timeline"):
                             last_date = item["timeline"][-1].get("waktu", "-")
@@ -583,14 +580,12 @@ else:
 
                     df_potongan = pd.DataFrame(rows)
 
-                    # Tampilkan tabel di dashboard
                     st.dataframe(
                         df_potongan.style.format({"Nilai Potongan (Rp)": "Rp {:,.0f}"}),
                         use_container_width=True,
                         hide_index=True
                     )
 
-                    # Tombol Ekspor
                     col_exp1, col_exp2 = st.columns([1, 4])
                     with col_exp1:
                         excel_data = convert_df_to_excel(df_potongan)
@@ -639,7 +634,6 @@ else:
                 with c_b:
                     st.caption(f"**{prog_pct}%**")
                 
-                # Menampilkan rincian barang & anggaran
                 harga_est = item.get('harga_estimasi', 0) or 0
                 st.markdown(f"📦 **Daftar Barang:** {item['nama_barang']}")
                 st.caption(f"📍 Status: `{status_curr}` | 💰 Est Biaya: **Rp {harga_est:,}**")
@@ -719,8 +713,6 @@ else:
             st.subheader("Pengajuan OPB Baru")
 
             # --- SELECTBOX DIVISI OUTSIDE FORM FOR REALTIME DYNAMIC UPDATE ---
-            # Menempatkan Selectbox di luar st.form agar saat opsi divisi diubah (misal: AC),
-            # Streamlit merender ulang nilai Sisa Budget secara instan.
             divisi_pilihan = st.selectbox(
                 "Divisi Pemohon",
                 DIVISI_LIST,
@@ -732,13 +724,20 @@ else:
             sisa_formatted = f"Rp {budget_div_info['sisa']:,}"
             st.info(f"💰 **Sisa Budget Terkini Divisi {divisi_pilihan}:** {sisa_formatted}")
 
-            with st.form(key="form_opb_engineering", clear_on_submit=True):
-                # 1. NOMOR OPB MANUAL INPUT (PRIORITAS UTAMA DI PALING ATAS)
-                nomor_opb_input = st.text_input(
-                    "Nomor OPB (Tulis Manual) *Prioritas", 
-                    placeholder="Contoh: OPB-001 / OPB/AC/2026/08"
-                )
+            # --- GENERATE NOMOR OPB OTOMATIS DAN READ-ONLY (BERURUT GLOBAL) ---
+            next_number = len(st.session_state["db_opb"]) + 1
+            code_div = divisi_pilihan.upper().replace(" ", "")
+            nomor_opb_auto = f"OPB/{code_div}/{next_number:03d}"
 
+            # NOMOR OPB DIPASANG OUTSIDE FORM (DISABLED = TIDAK BISA DIUBAH)
+            st.text_input(
+                "Nomor OPB (Otomatis)",
+                value=nomor_opb_auto,
+                disabled=True,
+                help="Nomor OPB di-generate secara otomatis berdasarkan urutan berkas dan divisi."
+            )
+
+            with st.form(key="form_opb_engineering", clear_on_submit=True):
                 urgensi = st.radio(
                     "Tingkat Urgensi / Jenis OPB",
                     options=[
@@ -751,7 +750,6 @@ else:
                 )
 
                 st.markdown("---")
-                # DETAIL PENGAJUAN BARANG SECARA MANUAL/LANGSUNG
                 nama_barang = st.text_area(
                     "Detail Pengajuan Barang (Tulis Langsung)",
                     placeholder="Misal: 1 RAM, 2 SSD, 4 Mouse, 1 Unit AC 2 PK",
@@ -769,7 +767,7 @@ else:
                 submit = st.form_submit_button("🚀 Submit & Kirim OPB ke Purchasing", type="primary", use_container_width=True)
 
             if submit:
-                if nomor_opb_input and nama_barang:
+                if nama_barang:
                     with st.spinner("Menyimpan berkas..."):
                         file_url = None
                         file_name = "-"
@@ -778,9 +776,9 @@ else:
                             file_name = file_opb.name
                             file_url = upload_file_to_supabase(file_bytes, file_name, folder="opb")
 
-                        sig_eng = generate_digital_signature("Engineering", user_info["name"], nomor_opb_input)
+                        sig_eng = generate_digital_signature("Engineering", user_info["name"], nomor_opb_auto)
                         data_baru = {
-                            "nomor_opb": nomor_opb_input,
+                            "nomor_opb": nomor_opb_auto,
                             "divisi": divisi_pilihan,
                             "urgensi": urgensi,
                             "nama_barang": nama_barang,
@@ -811,7 +809,7 @@ else:
                         st.toast("🚀 OPB Berhasil diteruskan ke Purchasing!", icon="✅")
                         st.rerun()
                 else:
-                    st.warning("Mohon isi Nomor OPB dan Detail Barang terlebih dahulu.")
+                    st.warning("Mohon isi Detail Barang terlebih dahulu.")
             st.markdown("</div>", unsafe_allow_html=True)
 
         with tab2:
@@ -863,7 +861,6 @@ else:
                     vendor = st.text_input("Nama Vendor/Pemasok Pilihan", value=item["vendor"], key=f"v_{item['id']}")
                     harga = st.number_input("Estimasi Total Harga (Rp)", min_value=0, value=int(item["harga_estimasi"]), key=f"h_{item['id']}")
 
-                    # Menampilkan Simulasi Potongan Budget Divisi
                     div_item = item.get('divisi', 'IT')
                     sisa_skrg = budget_summary.get(div_item, {}).get('sisa', 1_000_000_000)
                     sisa_setelah = sisa_skrg - harga
