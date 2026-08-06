@@ -34,15 +34,18 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 BUCKET_NAME = "opb-files"
 
-# --- BUDGET DEFAULT PER DIVISI (Dalam Rupiah) ---
-INITIAL_BUDGETS = {
-    "IT": 100_000_000,
-    "HRD": 50_000_000,
-    "Finance": 40_000_000,
-    "Operational": 150_000_000,
-    "Marketing": 75_000_000,
-    "GA / Logistics": 80_000_000,
-}
+# --- LIST DIVISI BARU & BUDGET 1 MILIAR PER DIVISI ---
+DIVISI_LIST = [
+    "IT",
+    "Mekanikal",
+    "Civil",
+    "Plumbing",
+    "Elektrikal",
+    "Lift",
+    "AC",
+]
+
+INITIAL_BUDGETS = {div: 1_000_000_000 for div in DIVISI_LIST}
 
 # --- 2. FUNGSI PERSISTENSI DATA (SUPABASE STORAGE & DB) ---
 def upload_file_to_supabase(file_bytes, file_name, folder="opb"):
@@ -120,28 +123,12 @@ def save_database(item_data, is_new=False):
         st.error(f"Gagal menyimpan ke Supabase: {e}")
 
 
-def get_next_opb_number(data_list):
-    """Generates sequential number formatted like OPB/YYYYMMDD/0001."""
-    today_str = datetime.now().strftime("%Y%m%d")
-    count = 1
-    for item in data_list:
-        no_str = item.get("nomor_opb", "")
-        if today_str in no_str:
-            try:
-                seq = int(no_str.split("/")[-1])
-                if seq >= count:
-                    count = seq + 1
-            except Exception:
-                pass
-    return f"OPB/{today_str}/{count:04d}"
-
-
 def calculate_budget_summary(data_list):
     """Menghitung sisa budget per divisi berdasarkan OPB yang sudah di-ACC/Selesai."""
     budget_usage = {div: 0 for div in INITIAL_BUDGETS}
     for item in data_list:
         div = item.get("divisi", "IT")
-        # Budget terpotong jika OPB sudah disetujui/dalam proses pembelian/selesai
+        # Budget terpotong jika OPB berada pada tahap setelah disetujui
         if item.get("status") in [
             "6. Serah Terima Barang (Purchasing -> Engineering)",
             "7. Verifikasi Penerimaan Barang (Engineering)",
@@ -283,11 +270,11 @@ def render_download_buttons(item, key_prefix="dl"):
         if item.get("file_opb_url"):
             st.markdown(f"[📥 Download OPB]({item['file_opb_url']})")
         else:
-            resume_text = f"RESUME DOKUMEN OPB\nNomor: {item['nomor_opb']}\nNama Barang: {item['nama_barang']}\nJumlah: {item.get('jumlah',1)} {item.get('satuan','Pcs')}\nDivisi: {item.get('divisi','IT')}"
+            resume_text = f"RESUME DOKUMEN OPB\nNomor: {item['nomor_opb']}\nDaftar Barang: {item['nama_barang']}\nDivisi: {item.get('divisi','IT')}"
             st.download_button(
                 label=f"📄 Draft OPB",
                 data=resume_text.encode("utf-8"),
-                file_name=f"{item['nomor_opb'].replace('/', '_')}.txt",
+                file_name=f"{str(item['nomor_opb']).replace('/', '_')}.txt",
                 mime="text/plain",
                 key=f"{key_prefix}_opb_txt_{item['id']}",
                 use_container_width=True,
@@ -541,8 +528,8 @@ else:
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # TABEL / METRIK BUDGETING PER DIVISI
-        with st.expander("💳 **RINCIAN BUDGET & SISA ANGGARAN PER DIVISI**", expanded=True):
+        # TABEL / METRIK BUDGETING 1 MILIAR PER DIVISI
+        with st.expander("💳 **RINCIAN BUDGET & SISA ANGGARAN PER DIVISI (ALOKASI @ Rp 1 MILIAR)**", expanded=True):
             b_cols = st.columns(len(budget_summary))
             for idx, (div_name, b_info) in enumerate(budget_summary.items()):
                 with b_cols[idx]:
@@ -550,7 +537,7 @@ else:
                     st.caption(f"Pagu: Rp {b_info['pagu_awal']:,}")
                     st.caption(f"Terpakai: Rp {b_info['terpakai']:,}")
                     sisa_color = "green" if b_info['sisa'] > 0 else "red"
-                    st.markdown(f"<span style='color:{sisa_color}; font-weight:bold;'>Sisa: Rp {b_info['sisa']:,}</span>", unsafe_allow_html=True)
+                    st.markdown(f"<span style='color:{sisa_color}; font-weight:bold; font-size:12px;'>Sisa: Rp {b_info['sisa']:,}</span>", unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
 
@@ -571,7 +558,7 @@ else:
                 else:
                     prog_pct = 0
 
-                st.markdown(f"**{item['nomor_opb']}** — {item['nama_barang']} (`{item.get('divisi','IT')}`) | Urgensi: `{item.get('urgensi','Normal')}`")
+                st.markdown(f"**{item['nomor_opb']}** — `{item.get('divisi','IT')}` | Urgensi: `{item.get('urgensi','Normal')}`")
                 c_a, c_b = st.columns([4, 1])
                 with c_a:
                     st.progress(prog_pct)
@@ -579,10 +566,9 @@ else:
                     st.caption(f"**{prog_pct}%**")
                 
                 # Menampilkan rincian barang & anggaran
-                qty_val = item.get('jumlah', 1)
-                sat_val = item.get('satuan', 'Pcs')
                 harga_est = item.get('harga_estimasi', 0) or 0
-                st.caption(f"📦 Qty: **{qty_val} {sat_val}** | 📍 Status: `{status_curr}` | 💰 Est: **Rp {harga_est:,}**")
+                st.markdown(f"📦 **Daftar Barang:** {item['nama_barang']}")
+                st.caption(f"📍 Status: `{status_curr}` | 💰 Est Biaya: **Rp {harga_est:,}**")
 
                 st.markdown("📂 **Unduh Lampiran Berkas:**")
                 render_download_buttons(item, key_prefix=f"dash_{idx}")
@@ -658,19 +644,17 @@ else:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.subheader("Pengajuan OPB Baru")
 
-            # Generate No OPB Otomatis (0001, 0002, dst)
-            nomor_opb_auto = get_next_opb_number(st.session_state["db_opb"])
-
             with st.form(key="form_opb_engineering", clear_on_submit=True):
-                st.text_input("Nomor OPB (Otomatis)", value=nomor_opb_auto, disabled=True)
+                # NOMOR OPB MANUAL INPUT
+                nomor_opb_input = st.text_input("Nomor OPB (Tulis Manual)", placeholder="Contoh: OPB-001 / OPB/IT/2026/08")
 
                 divisi_pilihan = st.selectbox(
                     "Divisi Pemohon",
-                    ["IT", "HRD", "Finance", "Operational", "Marketing", "GA / Logistics"]
+                    DIVISI_LIST
                 )
 
                 # Menampilkan Sisa Budget Divisi yang Dipilih
-                budget_div_info = budget_summary.get(divisi_pilihan, {"sisa": 0})
+                budget_div_info = budget_summary.get(divisi_pilihan, {"sisa": 1_000_000_000})
                 st.info(f"💰 **Sisa Budget Terkini Divisi {divisi_pilihan}:** Rp {budget_div_info['sisa']:,}")
 
                 urgensi = st.radio(
@@ -684,27 +668,17 @@ else:
                     horizontal=True
                 )
 
-                if "Darurat" in urgensi:
-                    st.error("🚨 **DARURAT (1x24 Jam):** OPB ini akan langsung menjadi prioritas utama penanganan.")
-                elif "Prioritas" in urgensi:
-                    st.warning("⚠️ **PRIORITAS (3x24 Jam):** OPB membutuhkan pemrosesan cepat.")
-                elif "Medium" in urgensi:
-                    st.success("✅ **MEDIUM (5x24 Jam):** Pemrosesan standar reguler.")
-                else:
-                    st.info("ℹ️ **NORMAL (7x24 Jam):** Pemrosesan antrean normal.")
-
                 st.markdown("---")
-                nama_barang = st.text_input("Nama Barang / Jenis Pekerjaan", placeholder="Contoh: Lampu LED Tube 18W")
-
-                col_q1, col_q2 = st.columns(2)
-                with col_q1:
-                    jumlah = st.number_input("Jumlah / QTY", min_value=1, value=1, step=1)
-                with col_q2:
-                    satuan = st.selectbox("Satuan", ["Pcs", "Unit", "Box", "Roll", "Set", "Meter", "Paket"])
+                # DETAIL PENGAJUAN BARANG SECARA MANUAL/LANGSUNG
+                nama_barang = st.text_area(
+                    "Detail Pengajuan Barang (Tulis Langsung)",
+                    placeholder="Misal: 1 RAM, 2 SSD, 4 Mouse, 1 Unit AC 2 PK",
+                    height=100
+                )
 
                 keterangan = st.text_area(
-                    "Alasan Kebutuhan & Spesifikasi Detail",
-                    placeholder="Tuliskan alasan kebutuhan dan spesifikasi...",
+                    "Alasan Kebutuhan & Spesifikasi Detail Tambahan",
+                    placeholder="Tuliskan alasan kebutuhan atau spesifikasi khusus (Opsional)...",
                 )
                 file_opb = st.file_uploader("Unggah Dokumen Lampiran BA (PDF/Word/Excel)", type=["pdf", "docx", "xlsx"])
 
@@ -713,7 +687,7 @@ else:
                 submit = st.form_submit_button("🚀 Submit & Kirim OPB ke Purchasing", type="primary", use_container_width=True)
 
             if submit:
-                if nama_barang:
+                if nomor_opb_input and nama_barang:
                     with st.spinner("Menyimpan berkas..."):
                         file_url = None
                         file_name = "-"
@@ -722,14 +696,14 @@ else:
                             file_name = file_opb.name
                             file_url = upload_file_to_supabase(file_bytes, file_name, folder="opb")
 
-                        sig_eng = generate_digital_signature("Engineering", user_info["name"], nomor_opb_auto)
+                        sig_eng = generate_digital_signature("Engineering", user_info["name"], nomor_opb_input)
                         data_baru = {
-                            "nomor_opb": nomor_opb_auto,
+                            "nomor_opb": nomor_opb_input,
                             "divisi": divisi_pilihan,
                             "urgensi": urgensi,
                             "nama_barang": nama_barang,
-                            "jumlah": jumlah,
-                            "satuan": satuan,
+                            "jumlah": 1,
+                            "satuan": "Paket",
                             "keterangan": keterangan,
                             "file_opb_url": file_url,
                             "file_opb_name": file_name,
@@ -755,7 +729,7 @@ else:
                         st.toast("🚀 OPB Berhasil diteruskan ke Purchasing!", icon="✅")
                         st.rerun()
                 else:
-                    st.warning("Mohon lengkapi Nama Barang terlebih dahulu.")
+                    st.warning("Mohon isi Nomor OPB dan Detail Barang terlebih dahulu.")
             st.markdown("</div>", unsafe_allow_html=True)
 
         with tab2:
@@ -767,7 +741,7 @@ else:
             for item in items:
                 is_expanded = (st.session_state["target_focus_id"] == item["id"])
                 with st.expander(f"📦 {item['nomor_opb']} - {item['nama_barang']}", expanded=is_expanded):
-                    st.write(f"**Divisi:** {item.get('divisi','IT')} | **Qty:** {item.get('jumlah',1)} {item.get('satuan','Pcs')}")
+                    st.write(f"**Divisi:** {item.get('divisi','IT')}")
                     st.write(f"**Vendor:** {item['vendor']} | **Total Nilai:** Rp {item.get('harga_estimasi',0):,}")
                     render_download_buttons(item, key_prefix="eng_tab2")
 
@@ -799,8 +773,8 @@ else:
                 is_expanded = (st.session_state["target_focus_id"] == item["id"])
                 with st.expander(f"📌 {item['nomor_opb']} - {item['nama_barang']} ({item.get('divisi','IT')})", expanded=is_expanded):
                     st.write(f"**Divisi Pemohon:** {item.get('divisi','IT')} | **Urgensi:** {item.get('urgensi','Normal')}")
-                    st.write(f"**Kuantitas:** {item.get('jumlah',1)} {item.get('satuan','Pcs')}")
-                    st.write(f"**Spesifikasi:** {item['keterangan']}")
+                    st.write(f"**Daftar Pengajuan Barang:** {item['nama_barang']}")
+                    st.write(f"**Spesifikasi Tambahan:** {item['keterangan']}")
                     render_download_buttons(item, key_prefix="pur_tab1")
 
                     st.divider()
@@ -809,7 +783,7 @@ else:
 
                     # Menampilkan Simulasi Potongan Budget Divisi
                     div_item = item.get('divisi', 'IT')
-                    sisa_skrg = budget_summary.get(div_item, {}).get('sisa', 0)
+                    sisa_skrg = budget_summary.get(div_item, {}).get('sisa', 1_000_000_000)
                     sisa_setelah = sisa_skrg - harga
                     st.caption(f"💡 **Simulasi Budget Divisi {div_item}:** Sisa Awal: Rp {sisa_skrg:,} $\rightarrow$ **Sisa Setelah Potongan OPB Ini: Rp {sisa_setelah:,}**")
 
@@ -970,7 +944,7 @@ else:
                 b_info = budget_summary.get(div_item, {})
                 st.write(f"**Divisi Pemohon:** {div_item}")
                 st.write(f"**Pengajuan Dana (Potongan Budget):** Rp {item['harga_estimasi']:,}")
-                st.write(f"**Status Sisa Budget Divisi saat ini:** Rp {b_info.get('sisa', 0):,}")
+                st.write(f"**Status Sisa Budget Divisi saat ini:** Rp {b_info.get('sisa', 1_000_000_000):,}")
 
                 render_download_buttons(item, key_prefix="fin_panel")
 
@@ -1015,8 +989,8 @@ else:
 
                 st.write(f"**Divisi Pemohon:** {div_item}")
                 st.write(f"**Nilai Pengajuan (Potongan Budget):** Rp {harga_nilai:,}")
-                st.write(f"**Sisa Budget {div_item} Sebelum Pemotongan:** Rp {b_info.get('sisa', 0):,}")
-                st.write(f"**Sisa Budget {div_item} Setelah Disetujui ACC:** Rp {b_info.get('sisa', 0) - harga_nilai:,}")
+                st.write(f"**Sisa Budget {div_item} Sebelum Pemotongan:** Rp {b_info.get('sisa', 1_000_000_000):,}")
+                st.write(f"**Sisa Budget {div_item} Setelah Disetujui ACC:** Rp {b_info.get('sisa', 1_000_000_000) - harga_nilai:,}")
 
                 render_download_buttons(item, key_prefix="p3srs_panel")
 
