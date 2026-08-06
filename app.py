@@ -718,18 +718,26 @@ else:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.subheader("Pengajuan OPB Baru")
 
+            # --- SELECTBOX DIVISI OUTSIDE FORM FOR REALTIME DYNAMIC UPDATE ---
+            # Menempatkan Selectbox di luar st.form agar saat opsi divisi diubah (misal: AC),
+            # Streamlit merender ulang nilai Sisa Budget secara instan.
+            divisi_pilihan = st.selectbox(
+                "Divisi Pemohon",
+                DIVISI_LIST,
+                key="select_divisi_pemohon"
+            )
+
+            # Menampilkan Sisa Budget Divisi yang Dipilih
+            budget_div_info = budget_summary.get(divisi_pilihan, {"sisa": 1_000_000_000})
+            sisa_formatted = f"Rp {budget_div_info['sisa']:,}"
+            st.info(f"💰 **Sisa Budget Terkini Divisi {divisi_pilihan}:** {sisa_formatted}")
+
             with st.form(key="form_opb_engineering", clear_on_submit=True):
-                # NOMOR OPB MANUAL INPUT
-                nomor_opb_input = st.text_input("Nomor OPB (Tulis Manual)", placeholder="Contoh: OPB-001 / OPB/IT/2026/08")
-
-                divisi_pilihan = st.selectbox(
-                    "Divisi Pemohon",
-                    DIVISI_LIST
+                # 1. NOMOR OPB MANUAL INPUT (PRIORITAS UTAMA DI PALING ATAS)
+                nomor_opb_input = st.text_input(
+                    "Nomor OPB (Tulis Manual) *Prioritas", 
+                    placeholder="Contoh: OPB-001 / OPB/AC/2026/08"
                 )
-
-                # Menampilkan Sisa Budget Divisi yang Dipilih
-                budget_div_info = budget_summary.get(divisi_pilihan, {"sisa": 1_000_000_000})
-                st.info(f"💰 **Sisa Budget Terkini Divisi {divisi_pilihan}:** Rp {budget_div_info['sisa']:,}")
 
                 urgensi = st.radio(
                     "Tingkat Urgensi / Jenis OPB",
