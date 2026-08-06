@@ -105,6 +105,21 @@ def save_database(item_data, is_new=False):
             "nomor_opb": str(item_data.get("nomor_opb", "")),
             "jumlah": int(item_data.get("jumlah", 1)),
             "keterangan": str(item_data.get("keterangan", "") or ""),
+            "divisi": str(item_data.get("divisi", "IT")),
+            "urgensi": str(item_data.get("urgensi", "Normal")),
+            "status": str(item_data.get("status", "1. Penawaran Purchasing")),
+            "harga_estimasi": int(item_data.get("harga_estimasi", 0) or 0),
+            "vendor": str(item_data.get("vendor", "-")),
+            "file_opb_url": item_data.get("file_opb_url"),
+            "file_opb_name": str(item_data.get("file_opb_name", "-")),
+            "file_iom_url": item_data.get("file_iom_url"),
+            "file_iom_name": str(item_data.get("file_iom_name", "-")),
+            "file_bast_url": item_data.get("file_bast_url"),
+            "file_bast_name": str(item_data.get("file_bast_name", "-")),
+            "catatan_bm": str(item_data.get("catatan_bm", "-")),
+            "catatan_finance": str(item_data.get("catatan_finance", "-")),
+            "catatan_p3srs": str(item_data.get("catatan_p3srs", "-")),
+            "timeline": json.dumps(item_data.get("timeline", [])) if isinstance(item_data.get("timeline"), list) else item_data.get("timeline", "[]")
         }
 
         # Tambahkan kolom id jika proses update
@@ -669,7 +684,7 @@ else:
                             st.markdown(f'<div class="timeline-card"><span class="timeline-time">⏱️ {waktu_log}</span><p class="timeline-desc">{pesan_log}{sig_badge_html}</p></div>', unsafe_allow_html=True)
                         st.markdown("</div>", unsafe_allow_html=True)
                     else:
-                        st.caption("Belum ada riwayat aktivitas.")
+                        st.caption("📍 *Berkas baru diajukan oleh Engineering dan menunggu proses Penawaran Purchasing.*")
 
                 st.markdown("<hr style='margin:12px 0;'>", unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
@@ -788,6 +803,17 @@ else:
                             file_url = upload_file_to_supabase(file_bytes, file_name, folder="opb")
 
                         sig_eng = generate_digital_signature("Engineering", user_info["name"], nomor_opb_auto)
+                        
+                        wib = pytz.timezone("Asia/Jakarta")
+                        waktu_sekarang = datetime.now(wib).strftime("%d/%m/%Y %H:%M:%S")
+                        
+                        # Inisialisasi data timeline awal secara langsung
+                        initial_timeline = [{
+                            "waktu": waktu_sekarang,
+                            "pesan": f"Pengajuan OPB Baru diajukan oleh {user_info['name']} untuk Divisi {divisi_pilihan} ({urgensi}). Menunggu penawaran dari Purchasing.",
+                            "signature": sig_eng
+                        }]
+
                         data_baru = {
                             "nomor_opb": nomor_opb_auto,
                             "divisi": divisi_pilihan,
@@ -808,16 +834,13 @@ else:
                             "catatan_finance": "-",
                             "catatan_p3srs": "-",
                             "status": "1. Penawaran Purchasing",
-                            "timeline": [],
+                            "timeline": initial_timeline,
                         }
-                        catat_log(
-                            data_baru,
-                            f"OPB Dibuat untuk Divisi {divisi_pilihan} ({urgensi}) oleh {user_info['name']}",
-                            digital_sig=sig_eng,
-                        )
 
                         res = save_database(data_baru, is_new=True)
                         if res:
+                            st.success("✅ Berkas berhasil diajukan!")
+                            st.info("🔔 Notifikasi telah dikirimkan ke tim Purchasing untuk diproses.")
                             st.toast("🚀 OPB Berhasil diteruskan ke Purchasing!", icon="✅")
                             st.rerun()
                 else:
