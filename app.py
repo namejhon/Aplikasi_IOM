@@ -627,9 +627,9 @@ else:
             st.markdown("##### 📌 Progress Live Status & Timeline Berkas")
             st.markdown("<br>", unsafe_allow_html=True)
             for idx, item in enumerate(st.session_state["db_opb"]):
-                status_curr = item.get("status", "1. Penawaran Purchasing")
+                status_curr = item.get("status") or "1. Penawaran Purchasing"
 
-                if "Revisi" in status_curr:
+                if "Revisi" in str(status_curr):
                     prog_pct = 25
                 elif status_curr in TAHAPAN_OPB:
                     step_idx = TAHAPAN_OPB.index(status_curr) + 1
