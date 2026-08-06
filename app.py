@@ -783,7 +783,6 @@ else:
                             "urgensi": urgensi,
                             "nama_barang": nama_barang,
                             "jumlah": 1,
-                            "satuan": "Paket",
                             "keterangan": keterangan,
                             "file_opb_url": file_url,
                             "file_opb_name": file_name,
