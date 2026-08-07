@@ -83,19 +83,19 @@ def load_database():
         data = response.data
         
         for item in data:
-            if isinstance(item.get("timeline"), str):
-                try:
-                    item"timeline"] = json.loads(item"timeline")
-                except Exception:
-                    item"timeline"] = ]
-            elif item.get("timeline") is None:
-                item"timeline"] = ]
+    if isinstance(item.get("timeline"), str):
+        try:
+            item["timeline"] = json.loads(item["timeline"])
+        except Exception:
+            item["timeline"] = []
+    elif item.get("timeline") is None:
+        item["timeline"] = []
 
-            if not item.get("status"):
-                item"status"] = "1. Penawaran Purchasing"
+    if not item.get("status"):
+        item["status"] = "1. Penawaran Purchasing"
 
-            if not item.get("divisi"):
-                item"divisi"] = "IT"
+    if not item.get("divisi"):
+        item["divisi"] = "IT"
             if not item.get("urgensi"):
                 item"urgensi"] = "Normal"
             if item.get("harga_estimasi") is None:
