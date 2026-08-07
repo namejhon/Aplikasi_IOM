@@ -36,7 +36,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 BUCKET_NAME = "opb-files"
 
 # --- LIST DIVISI BARU & BUDGET 1 MILIAR PER DIVISI ---
-DIVISI_LIST = 
+DIVISI_LIST = [
     "IT",
     "Mekanikal",
     "Civil",
@@ -44,12 +44,13 @@ DIVISI_LIST =
     "Elektrikal",
     "Lift",
     "AC",
+]
 
 INITIAL_BUDGETS = {div: 1_000_000_000 for div in DIVISI_LIST}
 
 # --- 2. FUNGSI PERSISTENSI DATA (SUPABASE STORAGE & DB) ---
 def upload_file_to_supabase(file_bytes, file_name, folder="opb"):
-    """Mengunggah file ke Supabase Storage dan mengembalikan URL Publiknya."""
+    """Mengunggah file ke Supabase Storage dan mengembalikan URL Publiknya[cite: 2]."""
     if not file_bytes:
         return None
     try:
@@ -72,7 +73,7 @@ def upload_file_to_supabase(file_bytes, file_name, folder="opb"):
 
 
 def load_database():
-    """Membaca seluruh data OPB dari tabel Supabase dengan Sanitasi Data."""
+    """Membaca seluruh data OPB dari tabel Supabase dengan Sanitasi Data[cite: 2]."""
     try:
         response = (
             supabase.table("opb_data")
@@ -83,34 +84,34 @@ def load_database():
         data = response.data
         
         for item in data:
-    if isinstance(item.get("timeline"), str):
-        try:
-            item["timeline"] = json.loads(item["timeline"])
-        except Exception:
-            item["timeline"] = []
-    elif item.get("timeline") is None:
-        item["timeline"] = []
+            if isinstance(item.get("timeline"), str):
+                try:
+                    item["timeline"] = json.loads(item["timeline"])
+                except Exception:
+                    item["timeline"] = []
+            elif item.get("timeline") is None:
+                item["timeline"] = []
 
-    if not item.get("status"):
-        item["status"] = "1. Penawaran Purchasing"
+            if not item.get("status"):
+                item["status"] = "1. Penawaran Purchasing"
 
-    if not item.get("divisi"):
-        item["divisi"] = "IT"
+            if not item.get("divisi"):
+                item["divisi"] = "IT"
             if not item.get("urgensi"):
-                item"urgensi"] = "Normal"
+                item["urgensi"] = "Normal"
             if item.get("harga_estimasi") is None:
-                item"harga_estimasi"] = 0
+                item["harga_estimasi"] = 0
             if not item.get("vendor"):
-                item"vendor"] = "-"
+                item["vendor"] = "-"
 
         return data
     except Exception as e:
         st.error(f"Gagal memuat database dari Supabase: {e}")
-        return ]
+        return []
 
 
 def save_database(item_data, is_new=False):
-    """Menyimpan item ke Supabase dengan Debugging Error Terperinci."""
+    """Menyimpan item ke Supabase dengan Debugging Error Terperinci[cite: 2]."""
     try:
         db_payload = {
             "nama_barang": str(item_data.get("nama_barang", "")),
@@ -128,11 +129,11 @@ def save_database(item_data, is_new=False):
             "catatan_bm": str(item_data.get("catatan_bm", "-")),
             "catatan_finance": str(item_data.get("catatan_finance", "-")),
             "catatan_p3srs": str(item_data.get("catatan_p3srs", "-")),
-            "timeline": json.dumps(item_data.get("timeline", ])),
+            "timeline": json.dumps(item_data.get("timeline", [])),
         }
 
         if not is_new and "id" in item_data:
-            db_payload"id"] = int(item_data"id"])
+            db_payload["id"] = int(item_data["id"])
 
         if is_new:
             response = supabase.table("opb_data").insert(db_payload).execute()
@@ -140,7 +141,7 @@ def save_database(item_data, is_new=False):
             response = (
                 supabase.table("opb_data")
                 .update(db_payload)
-                .eq("id", db_payload"id"])
+                .eq("id", db_payload["id"])
                 .execute()
             )
 
@@ -154,20 +155,20 @@ def calculate_budget_summary(data_list):
     budget_usage = {div: 0 for div in INITIAL_BUDGETS}
     for item in data_list:
         div = item.get("divisi", "IT")
-        if item.get("status") in 
+        if item.get("status") in [
             "6. Serah Terima Barang (Purchasing -> Engineering)",
             "7. Verifikasi Penerimaan Barang (Engineering)",
             "8. Selesai",
         ]:
             harga = item.get("harga_estimasi", 0) or 0
             if div in budget_usage:
-                budget_usagediv] += harga
+                budget_usage[div] += harga
 
     summary = {}
     for div, initial in INITIAL_BUDGETS.items():
         terpakai = budget_usage.get(div, 0)
         sisa = initial - terpakai
-        summarydiv] = {
+        summary[div] = {
             "pagu_awal": initial,
             "terpakai": terpakai,
             "sisa": sisa
@@ -262,7 +263,7 @@ def generate_digital_signature(user_role, user_name, doc_id):
     wib = pytz.timezone("Asia/Jakarta")
     waktu = datetime.now(wib).strftime("%Y-%m-%d %H:%M:%S")
     raw_data = f"{doc_id}-{user_role}-{user_name}-{waktu}"
-    sig_hash = hashlib.sha256(raw_data.encode()).hexdigest():12].upper()
+    sig_hash = hashlib.sha256(raw_data.encode()).hexdigest()[:12].upper()
     return {
         "signed_by": user_name,
         "role": user_role,
@@ -275,10 +276,10 @@ def catat_log(item, pesan, digital_sig=None):
     waktu_sekarang = datetime.now(wib).strftime("%d/%m/%Y %H:%M:%S")
     log_entry = {"waktu": waktu_sekarang, "pesan": pesan}
     if digital_sig:
-        log_entry"signature"] = digital_sig
-    if "timeline" not in item or not isinstance(item"timeline"], list):
-        item"timeline"] = ]
-    item"timeline"].append(log_entry)
+        log_entry["signature"] = digital_sig
+    if "timeline" not in item or not isinstance(item["timeline"], list):
+        item["timeline"] = []
+    item["timeline"].append(log_entry)
 
 def render_enhanced_timeline(timeline_data):
     """
@@ -374,7 +375,7 @@ def render_enhanced_timeline(timeline_data):
         st.caption("Belum ada riwayat aktivitas.")
         return
 
-    formatted_steps = ]
+    formatted_steps = []
     for i, log_entry in enumerate(timeline_data):
         if isinstance(log_entry, dict):
             waktu_log = log_entry.get("waktu", "-")
@@ -399,11 +400,10 @@ def render_enhanced_timeline(timeline_data):
     html_code = f"{timeline_css}<div class='opb-timeline-container'>"
 
     for step in formatted_steps:
-        icon_cls = "icon-active" if step"status"] == "active" else "icon-done"
+        icon_cls = "icon-active" if step["status"] == "active" else "icon-done"
         sig_badge_html = ""
-        # Cek jika log entry memiliki signature terlampir
-        if isinstance(timeline_datastep"step"]-1], dict) and timeline_datastep"step"]-1].get("signature"):
-            sig = timeline_datastep"step"]-1].get("signature")
+        if isinstance(timeline_data[step["step"]-1], dict) and timeline_data[step["step"]-1].get("signature"):
+            sig = timeline_data[step["step"]-1].get("signature")
             sig_badge_html = f"""
             <br><span class="digital-signature-badge">
                 🔏 Signed by <b>{sig.get('signed_by', '-')}</b> ({sig.get('role', '-')}) | {sig.get('hash', '-')}
@@ -412,29 +412,28 @@ def render_enhanced_timeline(timeline_data):
 
         html_code += f"""
         <div class="opb-tl-item">
-            <div class="opb-tl-icon {icon_cls}">{step'step']}</div>
+            <div class="opb-tl-icon {icon_cls}">{step['step']}</div>
             <div class="opb-tl-content">
                 <div class="opb-tl-header">
-                    <span class="opb-tl-title">{step'title']}</span>
-                    <span class="opb-tl-actor">👤 {step'actor']}</span>
+                    <span class="opb-tl-title">{step['title']}</span>
+                    <span class="opb-tl-actor">👤 {step['actor']}</span>
                 </div>
-                <div class="opb-tl-time">🕒 {step'time']}</div>
-                <div class="opb-tl-desc">{step'desc']}{sig_badge_html}</div>
+                <div class="opb-tl-time">🕒 {step['time']}</div>
+                <div class="opb-tl-desc">{step['desc']}{sig_badge_html}</div>
             </div>
         </div>
         """
 
     html_code += "</div>"
     
-    # Hitung tinggi dinamis berdasarkan jumlah tahapan agar pas dan tidak ada scrollbar terpotong
     dynamic_height = max(130, len(timeline_data) * 115)
     components.html(html_code, height=dynamic_height, scrolling=False)
 
 def render_download_buttons(item, key_prefix="dl"):
-    col1, col2, col3 = st.columns(1, 1, 1])
+    col1, col2, col3 = st.columns([1, 1, 1])
     with col1:
         if item.get("file_opb_url"):
-            st.markdown(f"📥 Download OPB]({item'file_opb_url']})")
+            st.markdown(f"[📥 Download OPB]({item['file_opb_url']})")
         else:
             resume_text = f"RESUME DOKUMEN OPB\nNomor: {item.get('nomor_opb', '-')}\nDaftar Barang: {item.get('nama_barang', '-')}\nDivisi: {item.get('divisi','IT')}"
             st.download_button(
@@ -448,13 +447,13 @@ def render_download_buttons(item, key_prefix="dl"):
 
     with col2:
         if item.get("file_iom_url"):
-            st.markdown(f"📥 Download IOM]({item'file_iom_url']})")
+            st.markdown(f"[📥 Download IOM]({item['file_iom_url']})")
         else:
             st.caption("ℹ️ IOM Belum Ada")
 
     with col3:
         if item.get("file_bast_url"):
-            st.markdown(f"📦 Download BAST]({item'file_bast_url']})")
+            st.markdown(f"[📦 Download BAST]({item['file_bast_url']})")
         else:
             st.caption("ℹ️ BAST Belum Ada")
 
@@ -479,8 +478,8 @@ def render_signature_pad(key_id):
 
         function getPos(e) {{
             var rect = canvas_{key_id}.getBoundingClientRect();
-            var clientX = e.clientX || (e.touches && e.touches0].clientX);
-            var clientY = e.clientY || (e.touches && e.touches0].clientY);
+            var clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            var clientY = e.clientY || (e.touches && e.touches[0].clientY);
             return {{ x: clientX - rect.left, y: clientY - rect.top }};
         }}
 
@@ -503,47 +502,47 @@ def render_signature_pad(key_id):
     components.html(canvas_html, height=185)
 
 def cek_notifikasi_user(role):
-    db = st.session_state"db_opb"]
-    pending_items = ]
+    db = st.session_state["db_opb"]
+    pending_items = []
 
     if role == "Purchasing":
-        pending_items = x for x in db if x.get("status") in "1. Penawaran Purchasing", "3. Pembuatan IOM (Purchasing)", "6. Serah Terima Barang (Purchasing -> Engineering)", "Revisi BM (OPB)", "Revisi Finance", "Revisi BM/P3SRS (IOM)"] or not x.get("status")]
+        pending_items = [x for x in db if x.get("status") in ["1. Penawaran Purchasing", "3. Pembuatan IOM (Purchasing)", "6. Serah Terima Barang (Purchasing -> Engineering)", "Revisi BM (OPB)", "Revisi Finance", "Revisi BM/P3SRS (IOM)"] or not x.get("status")]
     elif role == "BM (Building Manager)":
-        pending_items = x for x in db if x.get("status") in "2. Review BM", "5. Approval Akhir (BM & P3SRS)"]]
+        pending_items = [x for x in db if x.get("status") in ["2. Review BM", "5. Approval Akhir (BM & P3SRS)"]]
     elif role == "Finance":
-        pending_items = x for x in db if x.get("status") == "4. Review Finance"]
+        pending_items = [x for x in db if x.get("status") == "4. Review Finance"]
     elif role == "P3SRS":
-        pending_items = x for x in db if x.get("status") == "5. Approval Akhir (BM & P3SRS)"]
+        pending_items = [x for x in db if x.get("status") == "5. Approval Akhir (BM & P3SRS)"]
     elif role == "Engineering":
-        pending_items = x for x in db if x.get("status") == "7. Verifikasi Penerimaan Barang (Engineering)"]
+        pending_items = [x for x in db if x.get("status") == "7. Verifikasi Penerimaan Barang (Engineering)"]
 
     return pending_items
 
 
 # --- 6. INITIALIZATION SESSION STATE ---
-st.session_state"db_opb"] = load_database()
+st.session_state["db_opb"] = load_database()
 
 cookie_manager = stx.CookieManager(key="my_cookie_manager")
 user_cookie = cookie_manager.get("opb_p3srs_user")
 
 if "logged_in" not in st.session_state:
-    st.session_state"logged_in"] = False
+    st.session_state["logged_in"] = False
 if "user_info" not in st.session_state:
-    st.session_state"user_info"] = None
+    st.session_state["user_info"] = None
 
-if not st.session_state"logged_in"] and user_cookie:
-    st.session_state"logged_in"] = True
-    st.session_state"user_info"] = user_cookie
+if not st.session_state["logged_in"] and user_cookie:
+    st.session_state["logged_in"] = True
+    st.session_state["user_info"] = user_cookie
 
 if "notif_shown" not in st.session_state:
-    st.session_state"notif_shown"] = False
+    st.session_state["notif_shown"] = False
 if "target_focus_id" not in st.session_state:
-    st.session_state"target_focus_id"] = None
+    st.session_state["target_focus_id"] = None
 
 
 # ==================== HALAMAN LOGIN ====================
-if not st.session_state"logged_in"]:
-    col_l1, col_l2, col_l3 = st.columns(1, 2, 1])
+if not st.session_state["logged_in"]:
+    col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
 
     with col_l2:
         st.markdown("<br>", unsafe_allow_html=True)
@@ -565,10 +564,10 @@ if not st.session_state"logged_in"]:
 
             if submit_login:
                 user_data = USERS.get(username_input.lower().strip())
-                if user_data and user_data"password"] == password_input:
-                    st.session_state"logged_in"] = True
-                    st.session_state"user_info"] = user_data
-                    st.session_state"notif_shown"] = False
+                if user_data and user_data["password"] == password_input:
+                    st.session_state["logged_in"] = True
+                    st.session_state["user_info"] = user_data
+                    st.session_state["notif_shown"] = False
                     cookie_manager.set("opb_p3srs_user", user_data, key="set_cookie_login")
                     st.toast("✅ Login Berhasil!", icon="🎉")
                     st.rerun()
@@ -586,19 +585,19 @@ if not st.session_state"logged_in"]:
 
 else:
     # ==================== APLIKASI UTAMA ====================
-    user_info = st.session_state"user_info"]
-    role = user_info"role"]
+    user_info = st.session_state["user_info"]
+    role = user_info["role"]
 
     pending_tasks = cek_notifikasi_user(role)
-    if pending_tasks and not st.session_state"notif_shown"]:
+    if pending_tasks and not st.session_state["notif_shown"]:
         st.toast(f"🔔 **Pemberitahuan:** Ada {len(pending_tasks)} tugas baru!", icon="📩")
-        st.session_state"notif_shown"] = True
+        st.session_state["notif_shown"] = True
 
     st.sidebar.markdown(
         f"""
         <div class="user-profile-card">
-            <h4 style="margin:0; color:#0f172a; font-size:14px; font-weight:700;">👤 {user_info'name']}</h4>
-            <span class="role-badge">{user_info'role']}</span>
+            <h4 style="margin:0; color:#0f172a; font-size:14px; font-weight:700;">👤 {user_info['name']}</h4>
+            <span class="role-badge">{user_info['role']}</span>
         </div>
     """,
         unsafe_allow_html=True,
@@ -608,10 +607,10 @@ else:
         st.sidebar.warning(f"🔔 **{len(pending_tasks)} Tugas Menunggu**")
 
     if st.sidebar.button("🚪 Keluar / Logout", use_container_width=True):
-        st.session_state"logged_in"] = False
-        st.session_state"user_info"] = None
-        st.session_state"notif_shown"] = False
-        st.session_state"target_focus_id"] = None
+        st.session_state["logged_in"] = False
+        st.session_state["user_info"] = None
+        st.session_state["notif_shown"] = False
+        st.session_state["target_focus_id"] = None
         cookie_manager.delete("opb_p3srs_user", key="delete_cookie_logout")
         st.rerun()
 
@@ -643,16 +642,16 @@ else:
         btn_cols = st.columns(min(len(pending_tasks), 4))
         for i, item_task in enumerate(pending_tasks):
             col_idx = i % 4
-            with btn_colscol_idx]:
+            with btn_cols[col_idx]:
                 if st.button(f"👉 {item_task.get('nomor_opb', 'OPB')}", key=f"quick_btn_{item_task.get('id', i)}", type="primary", use_container_width=True):
-                    st.session_state"target_focus_id"] = item_task.get("id")
+                    st.session_state["target_focus_id"] = item_task.get("id")
                     components.html('<script>window.parent.document.getElementById("anchor-kelola-opb").scrollIntoView({behavior: "smooth"});</script>', height=0)
         st.markdown("<br>", unsafe_allow_html=True)
 
     # ================= EXECUTIVE DASHBOARD & BUDGET PER DIVISI =================
     st.markdown("### 📊 Dashboard Monitoring & Budgeting Divisi")
 
-    TAHAPAN_OPB = 
+    TAHAPAN_OPB = [
         "1. Penawaran Purchasing",
         "2. Review BM",
         "3. Pembuatan IOM (Purchasing)",
@@ -663,19 +662,19 @@ else:
         "8. Selesai",
     ]
 
-    total_opb = len(st.session_state"db_opb"])
-    budget_summary = calculate_budget_summary(st.session_state"db_opb"])
+    total_opb = len(st.session_state["db_opb"])
+    budget_summary = calculate_budget_summary(st.session_state["db_opb"])
 
     if total_opb > 0:
-        df_opb = pd.DataFrame(st.session_state"db_opb"])
+        df_opb = pd.DataFrame(st.session_state["db_opb"])
         if "status" not in df_opb.columns:
-            df_opb"status"] = "1. Penawaran Purchasing"
+            df_opb["status"] = "1. Penawaran Purchasing"
         if "harga_estimasi" not in df_opb.columns:
-            df_opb"harga_estimasi"] = 0
+            df_opb["harga_estimasi"] = 0
 
-        total_selesai = len(df_opbdf_opb"status"] == "8. Selesai"])
+        total_selesai = len(df_opb[df_opb["status"] == "8. Selesai"])
         total_proses = total_opb - total_selesai
-        total_anggaran = df_opb"harga_estimasi"].fillna(0).sum()
+        total_anggaran = df_opb["harga_estimasi"].fillna(0).sum()
 
         m1, m2, m3, m4 = st.columns(4)
         with m1:
@@ -693,19 +692,19 @@ else:
             with st.expander("💳 **RINCIAN BUDGET & SISA ANGGARAN PER DIVISI (ALOKASI @ Rp 1 MILIAR)**", expanded=True):
                 b_cols = st.columns(len(budget_summary))
                 for idx, (div_name, b_info) in enumerate(budget_summary.items()):
-                    with b_colsidx]:
+                    with b_cols[idx]:
                         st.markdown(f"**{div_name}**")
-                        st.caption(f"Pagu: Rp {b_info'pagu_awal']:,}")
-                        st.caption(f"Terpakai: Rp {b_info'terpakai']:,}")
-                        sisa_color = "green" if b_info'sisa'] > 0 else "red"
-                        st.markdown(f"<span style='color:{sisa_color}; font-weight:bold; font-size:12px;'>Sisa: Rp {b_info'sisa']:,}</span>", unsafe_allow_html=True)
+                        st.caption(f"Pagu: Rp {b_info['pagu_awal']:,}")
+                        st.caption(f"Terpakai: Rp {b_info['terpakai']:,}")
+                        sisa_color = "green" if b_info['sisa'] > 0 else "red"
+                        st.markdown(f"<span style='color:{sisa_color}; font-weight:bold; font-size:12px;'>Sisa: Rp {b_info['sisa']:,}</span>", unsafe_allow_html=True)
 
-        if role in "Finance", "P3SRS"]:
+        if role in ["Finance", "P3SRS"]:
             st.markdown("<br>", unsafe_allow_html=True)
             with st.expander("📊 **RINCIAN MUTASI POTONGAN ANGGARAN & EKSPOR EXCEL (KHUSUS FINANCE & P3SRS)**", expanded=True):
-                items_potongan = 
-                    x for x in st.session_state"db_opb"]
-                    if x.get("status") in 
+                items_potongan = [
+                    x for x in st.session_state["db_opb"]
+                    if x.get("status") in [
                         "6. Serah Terima Barang (Purchasing -> Engineering)",
                         "7. Verifikasi Penerimaan Barang (Engineering)",
                         "8. Selesai",
@@ -713,11 +712,11 @@ else:
                 ]
 
                 if items_potongan:
-                    rows = ]
+                    rows = []
                     for item in items_potongan:
                         last_date = "-"
                         if item.get("timeline"):
-                            last_date = item"timeline"]-1].get("waktu", "-")
+                            last_date = item["timeline"][-1].get("waktu", "-")
 
                         rows.append({
                             "No OPB": item.get("nomor_opb", "-"),
@@ -737,7 +736,7 @@ else:
                         hide_index=True
                     )
 
-                    col_exp1, col_exp2 = st.columns(1, 4])
+                    col_exp1, col_exp2 = st.columns([1, 4])
                     with col_exp1:
                         excel_data = convert_df_to_excel(df_potongan)
                         st.download_button(
@@ -761,13 +760,13 @@ else:
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        col_dash1, col_dash2 = st.columns(1.3, 1])
+        col_dash1, col_dash2 = st.columns([1.3, 1])
 
         with col_dash1:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.markdown("##### 📌 Progress Live Status & Timeline Berkas")
             st.markdown("<br>", unsafe_allow_html=True)
-            for idx, item in enumerate(st.session_state"db_opb"]):
+            for idx, item in enumerate(st.session_state["db_opb"]):
                 status_curr = item.get("status") or "1. Penawaran Purchasing"
 
                 if "Revisi" in str(status_curr):
@@ -779,7 +778,7 @@ else:
                     prog_pct = 0
 
                 st.markdown(f"**{item.get('nomor_opb', '-')}** — `{item.get('divisi','IT')}` | Urgensi: `{item.get('urgensi','Normal')}`")
-                c_a, c_b = st.columns(4, 1])
+                c_a, c_b = st.columns([4, 1])
                 with c_a:
                     st.progress(prog_pct)
                 with c_b:
@@ -791,7 +790,7 @@ else:
 
                 render_download_buttons(item, key_prefix=f"dash_{idx}")
 
-                timeline_list = item.get("timeline", ])
+                timeline_list = item.get("timeline", [])
                 with st.expander(f"📜 Timeline & Jejak Verifikasi ({len(timeline_list)} Aktivitas)"):
                     render_enhanced_timeline(timeline_list)
 
@@ -802,8 +801,8 @@ else:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.markdown("##### 📈 Distribusi Berkas per Tahapan")
 
-            status_counts = df_opb"status"].value_counts().reset_index()
-            status_counts.columns = "Status Tahapan", "Jumlah OPB"]
+            status_counts = df_opb["status"].value_counts().reset_index()
+            status_counts.columns = ["Status Tahapan", "Jumlah OPB"]
 
             fig = px.bar(
                 status_counts,
@@ -838,7 +837,7 @@ else:
     # 1. ROLE ENGINEERING
     if role == "Engineering":
         st.header("🔧 Panel Kerja Engineering")
-        tab1, tab2 = st.tabs("📝 Buat Form OPB Baru", "📦 Verifikasi & Tanda Tangan Penerimaan Barang (BAST)"])
+        tab1, tab2 = st.tabs(["📝 Buat Form OPB Baru", "📦 Verifikasi & Tanda Tangan Penerimaan Barang (BAST)"])
 
         with tab1:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
@@ -846,9 +845,9 @@ else:
 
             divisi_pilihan = st.selectbox("Divisi Pemohon", DIVISI_LIST, key="select_divisi_pemohon")
             budget_div_info = budget_summary.get(divisi_pilihan, {"sisa": 1_000_000_000})
-            st.info(f"💰 **Sisa Budget Terkini Divisi {divisi_pilihan}:** Rp {budget_div_info'sisa']:,}")
+            st.info(f"💰 **Sisa Budget Terkini Divisi {divisi_pilihan}:** Rp {budget_div_info['sisa']:,}")
 
-            next_number = len(st.session_state"db_opb"]) + 1
+            next_number = len(st.session_state["db_opb"]) + 1
             code_div = divisi_pilihan.upper().replace(" ", "")
             nomor_opb_auto = f"OPB/{code_div}/{next_number:03d}"
 
@@ -857,7 +856,7 @@ else:
             with st.form(key="form_opb_engineering", clear_on_submit=True):
                 urgensi = st.radio(
                     "Tingkat Urgensi / Jenis OPB",
-                    options=
+                    options=[
                         "🔴 Darurat (1x24 Jam)",
                         "🟠 Prioritas (3x24 Jam)",
                         "🟢 Medium (5x24 Jam)",
@@ -867,7 +866,7 @@ else:
                 )
                 nama_barang = st.text_area("Detail Pengajuan Barang", placeholder="Misal: 1 RAM, 2 SSD...")
                 keterangan = st.text_area("Alasan Kebutuhan & Spesifikasi")
-                file_opb = st.file_uploader("Unggah Dokumen Lampiran BA", type="pdf", "docx", "xlsx"])
+                file_opb = st.file_uploader("Unggah Dokumen Lampiran BA", type=["pdf", "docx", "xlsx"])
 
                 submit = st.form_submit_button("🚀 Submit & Kirim OPB ke Purchasing", type="primary", use_container_width=True)
 
@@ -880,7 +879,7 @@ else:
                             file_url = upload_file_to_supabase(file_opb.getvalue(), file_opb.name, folder="opb")
                             file_name = file_opb.name
 
-                        sig_eng = generate_digital_signature("Engineering", user_info"name"], nomor_opb_auto)
+                        sig_eng = generate_digital_signature("Engineering", user_info["name"], nomor_opb_auto)
                         data_baru = {
                             "nomor_opb": nomor_opb_auto,
                             "divisi": divisi_pilihan,
@@ -892,9 +891,9 @@ else:
                             "harga_estimasi": 0,
                             "vendor": "-",
                             "status": "1. Penawaran Purchasing",
-                            "timeline": ],
+                            "timeline": [],
                         }
-                        catat_log(data_baru, f"OPB Dibuat untuk Divisi {divisi_pilihan} oleh {user_info'name']}", digital_sig=sig_eng)
+                        catat_log(data_baru, f"OPB Dibuat untuk Divisi {divisi_pilihan} oleh {user_info['name']}", digital_sig=sig_eng)
                         
                         res = save_database(data_baru, is_new=True)
                         if res:
@@ -907,44 +906,44 @@ else:
         with tab2:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.subheader("📦 Serah Terima Barang Masuk dari Purchasing")
-            items = x for x in st.session_state"db_opb"] if str(x.get("status")).strip() == "7. Verifikasi Penerimaan Barang (Engineering)"]
+            items = [x for x in st.session_state["db_opb"] if str(x.get("status")).strip() == "7. Verifikasi Penerimaan Barang (Engineering)"]
             if not items:
                 st.info("Tidak ada barang yang menunggu verifikasi penerimaan.")
             for item in items:
-                is_expanded = (st.session_state"target_focus_id"] == item.get("id"))
+                is_expanded = (st.session_state["target_focus_id"] == item.get("id"))
                 with st.expander(f"📦 {item.get('nomor_opb', '-')} - {item.get('nama_barang', '-')}", expanded=is_expanded):
                     st.write(f"**Divisi:** {item.get('divisi','IT')} | **Vendor:** {item.get('vendor', '-')}")
                     render_download_buttons(item, key_prefix="eng_tab2")
                     render_signature_pad(f"eng_rcv_{item.get('id', 0)}")
 
                     if st.button(f"✅ Konfirmasi & Tanda Tangan BAST", type="primary", use_container_width=True):
-                        sig_rcv = generate_digital_signature("Engineering (Penerima)", user_info"name"], item.get("nomor_opb", "OPB"))
-                        item"status"] = "8. Selesai"
-                        catat_log(item, f"Barang diterima oleh {user_info'name']}. BAST Ditandatangani.", digital_sig=sig_rcv)
+                        sig_rcv = generate_digital_signature("Engineering (Penerima)", user_info["name"], item.get("nomor_opb", "OPB"))
+                        item["status"] = "8. Selesai"
+                        catat_log(item, f"Barang diterima oleh {user_info['name']}. BAST Ditandatangani.", digital_sig=sig_rcv)
                         save_database(item, is_new=False)
-                        st.session_state"target_focus_id"] = None
+                        st.session_state["target_focus_id"] = None
                         st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
 
     # 2. ROLE PURCHASING
     elif role == "Purchasing":
         st.header("🛒 Panel Kerja Purchasing")
-        tab1, tab2, tab3 = st.tabs("1. Input Penawaran Harga", "2. Buat & Unggah IOM", "3. Serah Terima Barang ke Engineering"])
+        tab1, tab2, tab3 = st.tabs(["1. Input Penawaran Harga", "2. Buat & Unggah IOM", "3. Serah Terima Barang ke Engineering"])
 
         with tab1:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.subheader("OPB Masuk (Perlu Penawaran & Harga Vendor)")
             
-            items = 
-                x for x in st.session_state"db_opb"]
-                if str(x.get("status")).strip() in "1. Penawaran Purchasing", "Revisi BM (OPB)"]
+            items = [
+                x for x in st.session_state["db_opb"]
+                if str(x.get("status")).strip() in ["1. Penawaran Purchasing", "Revisi BM (OPB)"]
                 or not x.get("status")
             ]
 
             if not items:
                 st.info("Tidak ada tugas penawaran barang saat ini.")
             for item in items:
-                is_expanded = (st.session_state"target_focus_id"] == item.get("id"))
+                is_expanded = (st.session_state["target_focus_id"] == item.get("id"))
                 item_id = item.get("id", 0)
                 with st.expander(f"📌 {item.get('nomor_opb', '-')} - {item.get('nama_barang', '-')}", expanded=is_expanded):
                     st.write(f"**Divisi Pemohon:** {item.get('divisi','IT')} | **Urgensi:** {item.get('urgensi','Normal')}")
@@ -964,15 +963,15 @@ else:
                         submit_pur = st.form_submit_button("Kirim ke BM untuk Review", type="primary", use_container_width=True)
 
                     if submit_pur:
-                        sig_pur = generate_digital_signature("Purchasing", user_info"name"], item.get("nomor_opb", "OPB"))
-                        item"vendor"] = vendor_input
-                        item"harga_estimasi"] = int(harga_input)
-                        item"status"] = "2. Review BM"
+                        sig_pur = generate_digital_signature("Purchasing", user_info["name"], item.get("nomor_opb", "OPB"))
+                        item["vendor"] = vendor_input
+                        item["harga_estimasi"] = int(harga_input)
+                        item["status"] = "2. Review BM"
                         catat_log(item, f"Purchasing menentukan vendor ({vendor_input}) & harga Rp {harga_input:,}.", digital_sig=sig_pur)
                         
                         res = save_database(item, is_new=False)
                         if res is not None:
-                            st.session_state"target_focus_id"] = None
+                            st.session_state["target_focus_id"] = None
                             st.toast("📩 Berhasil dikirim ke BM!", icon="✅")
                             st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
@@ -980,27 +979,27 @@ else:
         with tab2:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.subheader("OPB Disetujui BM -> Buat & Upload IOM")
-            items = x for x in st.session_state"db_opb"] if str(x.get("status")).strip() in "3. Pembuatan IOM (Purchasing)", "Revisi Finance", "Revisi BM/P3SRS (IOM)"]]
+            items = [x for x in st.session_state["db_opb"] if str(x.get("status")).strip() in ["3. Pembuatan IOM (Purchasing)", "Revisi Finance", "Revisi BM/P3SRS (IOM)"]]
             if not items:
                 st.info("Tidak ada IOM yang perlu dibuat/direvisi.")
             for item in items:
-                is_expanded = (st.session_state"target_focus_id"] == item.get("id"))
+                is_expanded = (st.session_state["target_focus_id"] == item.get("id"))
                 item_id = item.get("id", 0)
                 with st.expander(f"📑 {item.get('nomor_opb', '-')} - {item.get('nama_barang', '-')}", expanded=is_expanded):
                     st.write(f"**Divisi:** {item.get('divisi','IT')} | **Vendor:** {item.get('vendor', '-')}")
                     render_download_buttons(item, key_prefix=f"pur_tab2_{item_id}")
 
                     st.divider()
-                    file_iom = st.file_uploader("Unggah Draft Dokumen IOM", type="pdf", "docx"], key=f"fiom_{item_id}")
+                    file_iom = st.file_uploader("Unggah Draft Dokumen IOM", type=["pdf", "docx"], key=f"fiom_{item_id}")
                     if st.button("Kirim Berkas IOM ke Finance", key=f"btn_p2_{item_id}", type="primary", use_container_width=True):
                         if file_iom:
                             iom_url = upload_file_to_supabase(file_iom.getvalue(), file_iom.name, folder="iom")
-                            sig_pur_iom = generate_digital_signature("Purchasing (IOM Draft)", user_info"name"], item.get("nomor_opb", "OPB"))
-                            item"file_iom_url"] = iom_url
-                            item"status"] = "4. Review Finance"
+                            sig_pur_iom = generate_digital_signature("Purchasing (IOM Draft)", user_info["name"], item.get("nomor_opb", "OPB"))
+                            item["file_iom_url"] = iom_url
+                            item["status"] = "4. Review Finance"
                             catat_log(item, "Purchasing mengunggah draft IOM ke Finance.", digital_sig=sig_pur_iom)
                             save_database(item, is_new=False)
-                            st.session_state"target_focus_id"] = None
+                            st.session_state["target_focus_id"] = None
                             st.rerun()
                         else:
                             st.warning("Silakan unggah file IOM terlebih dahulu.")
@@ -1009,44 +1008,44 @@ else:
         with tab3:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.subheader("🤝 Serah Terima Barang & Upload BAST ke Engineering")
-            items = x for x in st.session_state"db_opb"] if str(x.get("status")).strip() in "6. Pembelian Barang (Purchasing)", "6. Serah Terima Barang (Purchasing -> Engineering)"]]
+            items = [x for x in st.session_state["db_opb"] if str(x.get("status")).strip() in ["6. Pembelian Barang (Purchasing)", "6. Serah Terima Barang (Purchasing -> Engineering)"]]
             if not items:
                 st.info("Belum ada barang yang perlu diserahterimakan.")
             for item in items:
-                is_expanded = (st.session_state"target_focus_id"] == item.get("id"))
+                is_expanded = (st.session_state["target_focus_id"] == item.get("id"))
                 item_id = item.get("id", 0)
                 with st.expander(f"💳 {item.get('nomor_opb', '-')} - {item.get('nama_barang', '-')}", expanded=is_expanded):
                     st.write(f"**Divisi:** {item.get('divisi','IT')} | **Vendor:** {item.get('vendor', '-')}")
                     render_download_buttons(item, key_prefix=f"pur_tab3_{item_id}")
 
                     st.divider()
-                    file_bast = st.file_uploader("Unggah BAST", type="pdf", "jpg", "png"], key=f"bast_file_{item_id}")
+                    file_bast = st.file_uploader("Unggah BAST", type=["pdf", "jpg", "png"], key=f"bast_file_{item_id}")
                     render_signature_pad(f"pur_bast_{item_id}")
 
                     if st.button("🚚 Serahkan Barang & BAST ke Engineering", key=f"btn_p3_{item_id}", type="primary", use_container_width=True):
                         if file_bast:
-                            item"file_bast_url"] = upload_file_to_supabase(file_bast.getvalue(), file_bast.name, folder="bast")
+                            item["file_bast_url"] = upload_file_to_supabase(file_bast.getvalue(), file_bast.name, folder="bast")
 
-                        sig_handover = generate_digital_signature("Purchasing (Penyerah)", user_info"name"], item.get("nomor_opb", "OPB"))
-                        item"status"] = "7. Verifikasi Penerimaan Barang (Engineering)"
+                        sig_handover = generate_digital_signature("Purchasing (Penyerah)", user_info["name"], item.get("nomor_opb", "OPB"))
+                        item["status"] = "7. Verifikasi Penerimaan Barang (Engineering)"
                         catat_log(item, f"Purchasing menyerahkan fisik barang & BAST ke Engineering.", digital_sig=sig_handover)
                         save_database(item, is_new=False)
-                        st.session_state"target_focus_id"] = None
+                        st.session_state["target_focus_id"] = None
                         st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
 
     # 3. ROLE BUILDING MANAGER
     elif role == "BM (Building Manager)":
         st.header("👔 Panel Building Manager (BM)")
-        tab1, tab2 = st.tabs("Review OPB (Awal)", "Approval Final IOM"])
+        tab1, tab2 = st.tabs(["Review OPB (Awal)", "Approval Final IOM"])
 
         with tab1:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
-            items = x for x in st.session_state"db_opb"] if str(x.get("status")).strip() == "2. Review BM"]
+            items = [x for x in st.session_state["db_opb"] if str(x.get("status")).strip() == "2. Review BM"]
             if not items:
                 st.info("Tidak ada OPB baru menunggu persetujuan.")
             for item in items:
-                is_expanded = (st.session_state"target_focus_id"] == item.get("id"))
+                is_expanded = (st.session_state["target_focus_id"] == item.get("id"))
                 item_id = item.get("id", 0)
                 with st.expander(f"🧐 Review OPB: {item.get('nomor_opb', '-')} - {item.get('nama_barang', '-')}", expanded=is_expanded):
                     st.write(f"**Divisi:** {item.get('divisi','IT')} | **Vendor:** {item.get('vendor', '-')} | **Estimasi:** Rp {item.get('harga_estimasi', 0):,}")
@@ -1059,38 +1058,38 @@ else:
                     col1, col2 = st.columns(2)
                     with col1:
                         if st.button("✅ Setujui & Tanda Tangan OPB", key=f"app_bm1_{item_id}", type="primary", use_container_width=True):
-                            sig_bm = generate_digital_signature("Building Manager", user_info"name"], item.get("nomor_opb", "OPB"))
-                            item"status"] = "3. Pembuatan IOM (Purchasing)"
+                            sig_bm = generate_digital_signature("Building Manager", user_info["name"], item.get("nomor_opb", "OPB"))
+                            item["status"] = "3. Pembuatan IOM (Purchasing)"
                             catat_log(item, "BM menyetujui OPB. Diteruskan ke Purchasing.", digital_sig=sig_bm)
                             save_database(item, is_new=False)
-                            st.session_state"target_focus_id"] = None
+                            st.session_state["target_focus_id"] = None
                             st.rerun()
                     with col2:
                         if st.button("❌ Tolak / Minta Revisi", key=f"rej_bm1_{item_id}", use_container_width=True):
-                            item"catatan_bm"] = catatan
-                            item"status"] = "Revisi BM (OPB)"
+                            item["catatan_bm"] = catatan
+                            item["status"] = "Revisi BM (OPB)"
                             catat_log(item, f"BM meminta revisi OPB: {catatan}")
                             save_database(item, is_new=False)
-                            st.session_state"target_focus_id"] = None
+                            st.session_state["target_focus_id"] = None
                             st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
 
         with tab2:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
-            items = x for x in st.session_state"db_opb"] if str(x.get("status")).strip() == "5. Approval Akhir (BM & P3SRS)"]
+            items = [x for x in st.session_state["db_opb"] if str(x.get("status")).strip() == "5. Approval Akhir (BM & P3SRS)"]
             if not items:
                 st.info("Tidak ada IOM menunggu persetujuan final.")
             for item in items:
-                is_expanded = (st.session_state"target_focus_id"] == item.get("id"))
+                is_expanded = (st.session_state["target_focus_id"] == item.get("id"))
                 item_id = item.get("id", 0)
                 with st.expander(f"📑 Approval IOM: {item.get('nomor_opb', '-')}", expanded=is_expanded):
                     render_download_buttons(item, key_prefix=f"bm_tab2_{item_id}")
                     render_signature_pad(f"bm2_sig_{item_id}")
                     if st.button("✅ Approve & Tanda Tangan IOM Final (BM)", key=f"app_bm2_{item_id}", type="primary", use_container_width=True):
-                        sig_bm_iom = generate_digital_signature("Building Manager (IOM Final)", user_info"name"], item.get("nomor_opb", "OPB"))
+                        sig_bm_iom = generate_digital_signature("Building Manager (IOM Final)", user_info["name"], item.get("nomor_opb", "OPB"))
                         catat_log(item, "BM menyetujui IOM Final.", digital_sig=sig_bm_iom)
                         save_database(item, is_new=False)
-                        st.session_state"target_focus_id"] = None
+                        st.session_state["target_focus_id"] = None
                         st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -1098,11 +1097,11 @@ else:
     elif role == "Finance":
         st.header("💰 Panel Finance & Budgeting")
         st.markdown("<div class='content-box'>", unsafe_allow_html=True)
-        items = x for x in st.session_state"db_opb"] if str(x.get("status")).strip() == "4. Review Finance"]
+        items = [x for x in st.session_state["db_opb"] if str(x.get("status")).strip() == "4. Review Finance"]
         if not items:
             st.info("Tidak ada IOM yang membutuhkan verifikasi Finance saat ini.")
         for item in items:
-            is_expanded = (st.session_state"target_focus_id"] == item.get("id"))
+            is_expanded = (st.session_state["target_focus_id"] == item.get("id"))
             item_id = item.get("id", 0)
             with st.expander(f"💵 Review IOM: {item.get('nomor_opb', '-')}", expanded=is_expanded):
                 div_item = item.get("divisi", "IT")
@@ -1116,19 +1115,19 @@ else:
                 col1, col2 = st.columns(2)
                 with col1:
                     if st.button("✅ Verifikasi Budget", key=f"app_fin_{item_id}", type="primary", use_container_width=True):
-                        sig_fin = generate_digital_signature("Finance Officer", user_info"name"], item.get("nomor_opb", "OPB"))
-                        item"status"] = "5. Approval Akhir (BM & P3SRS)"
+                        sig_fin = generate_digital_signature("Finance Officer", user_info["name"], item.get("nomor_opb", "OPB"))
+                        item["status"] = "5. Approval Akhir (BM & P3SRS)"
                         catat_log(item, f"Finance memverifikasi budget Divisi {div_item}.", digital_sig=sig_fin)
                         save_database(item, is_new=False)
-                        st.session_state"target_focus_id"] = None
+                        st.session_state["target_focus_id"] = None
                         st.rerun()
                 with col2:
                     if st.button("❌ Minta Revisi Budget", key=f"rej_fin_{item_id}", use_container_width=True):
-                        item"catatan_finance"] = catatan
-                        item"status"] = "Revisi Finance"
+                        item["catatan_finance"] = catatan
+                        item["status"] = "Revisi Finance"
                         catat_log(item, f"Finance meminta revisi budget: {catatan}")
                         save_database(item, is_new=False)
-                        st.session_state"target_focus_id"] = None
+                        st.session_state["target_focus_id"] = None
                         st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -1136,11 +1135,11 @@ else:
     elif role == "P3SRS":
         st.header("🏛️ Panel P3SRS (Approval Akhir)")
         st.markdown("<div class='content-box'>", unsafe_allow_html=True)
-        items = x for x in st.session_state"db_opb"] if str(x.get("status")).strip() == "5. Approval Akhir (BM & P3SRS)"]
+        items = [x for x in st.session_state["db_opb"] if str(x.get("status")).strip() == "5. Approval Akhir (BM & P3SRS)"]
         if not items:
             st.info("Tidak ada IOM yang menunggu persetujuan P3SRS.")
         for item in items:
-            is_expanded = (st.session_state"target_focus_id"] == item.get("id"))
+            is_expanded = (st.session_state["target_focus_id"] == item.get("id"))
             item_id = item.get("id", 0)
             with st.expander(f"⚖️ Persetujuan Final: {item.get('nomor_opb', '-')}", expanded=is_expanded):
                 div_item = item.get("divisi", "IT")
@@ -1153,18 +1152,18 @@ else:
                 col1, col2 = st.columns(2)
                 with col1:
                     if st.button("✅ ACC & Potong Budget Divisi", key=f"app_p3srs_{item_id}", type="primary", use_container_width=True):
-                        sig_p3srs = generate_digital_signature("Pengurus P3SRS", user_info"name"], item.get("nomor_opb", "OPB"))
-                        item"status"] = "6. Serah Terima Barang (Purchasing -> Engineering)"
+                        sig_p3srs = generate_digital_signature("Pengurus P3SRS", user_info["name"], item.get("nomor_opb", "OPB"))
+                        item["status"] = "6. Serah Terima Barang (Purchasing -> Engineering)"
                         catat_log(item, f"P3SRS menyetujui IOM Final. Budget Divisi {div_item} terpotong Rp {harga_nilai:,}.", digital_sig=sig_p3srs)
                         save_database(item, is_new=False)
-                        st.session_state"target_focus_id"] = None
+                        st.session_state["target_focus_id"] = None
                         st.rerun()
                 with col2:
                     if st.button("❌ Minta Revisi", key=f"rej_p3srs_{item_id}", use_container_width=True):
-                        item"catatan_p3srs"] = catatan
-                        item"status"] = "Revisi BM/P3SRS (IOM)"
+                        item["catatan_p3srs"] = catatan
+                        item["status"] = "Revisi BM/P3SRS (IOM)"
                         catat_log(item, f"P3SRS meminta revisi IOM: {catatan}")
                         save_database(item, is_new=False)
-                        st.session_state"target_focus_id"] = None
+                        st.session_state["target_focus_id"] = None
                         st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
