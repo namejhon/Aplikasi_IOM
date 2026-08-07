@@ -44,7 +44,6 @@ DIVISI_LIST =
     "Elektrikal",
     "Lift",
     "AC",
-]
 
 INITIAL_BUDGETS = {div: 1_000_000_000 for div in DIVISI_LIST}
 
