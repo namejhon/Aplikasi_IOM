@@ -624,15 +624,17 @@ else:
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        with st.expander("💳 **RINCIAN BUDGET & SISA ANGGARAN PER DIVISI (ALOKASI @ Rp 1 MILIAR)**", expanded=True):
-            b_cols = st.columns(len(budget_summary))
-            for idx, (div_name, b_info) in enumerate(budget_summary.items()):
-                with b_cols[idx]:
-                    st.markdown(f"**{div_name}**")
-                    st.caption(f"Pagu: Rp {b_info['pagu_awal']:,}")
-                    st.caption(f"Terpakai: Rp {b_info['terpakai']:,}")
-                    sisa_color = "green" if b_info['sisa'] > 0 else "red"
-                    st.markdown(f"<span style='color:{sisa_color}; font-weight:bold; font-size:12px;'>Sisa: Rp {b_info['sisa']:,}</span>", unsafe_allow_html=True)
+       # TABEL / METRIK BUDGETING 1 MILIAR PER DIVISI (Hanya tampil untuk selain Engineering)
+        if role != "Engineering":
+            with st.expander("💳 **RINCIAN BUDGET & SISA ANGGARAN PER DIVISI (ALOKASI @ Rp 1 MILIAR)**", expanded=True):
+                b_cols = st.columns(len(budget_summary))
+                for idx, (div_name, b_info) in enumerate(budget_summary.items()):
+                    with b_cols[idx]:
+                        st.markdown(f"**{div_name}**")
+                        st.caption(f"Pagu: Rp {b_info['pagu_awal']:,}")
+                        st.caption(f"Terpakai: Rp {b_info['terpakai']:,}")
+                        sisa_color = "green" if b_info['sisa'] > 0 else "red"
+                        st.markdown(f"<span style='color:{sisa_color}; font-weight:bold; font-size:12px;'>Sisa: Rp {b_info['sisa']:,}</span>", unsafe_allow_html=True)
 
         if role in ["Finance", "P3SRS"]:
             st.markdown("<br>", unsafe_allow_html=True)
