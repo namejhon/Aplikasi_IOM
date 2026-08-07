@@ -85,7 +85,7 @@ def load_database():
         for item in data:
             if isinstance(item.get("timeline"), str):
                 try:
-                    item"timeline"] = json.loads(item"timeline"])
+                    item"timeline"] = json.loads(item"timeline")
                 except Exception:
                     item"timeline"] = ]
             elif item.get("timeline") is None:
