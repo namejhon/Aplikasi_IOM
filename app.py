@@ -232,55 +232,6 @@ st.markdown(
         border: 1px solid #e2e8f0; box-shadow: 0 4px 15px -3px rgba(0,0,0,0.03); margin-bottom: 20px;
     }
 
-    .timeline-container { 
-        position: relative; 
-        padding-left: 20px; 
-        margin: 15px 0 10px 5px; 
-        border-left: 3px solid #e2e8f0; 
-    }
-
-    .timeline-card {
-        position: relative; 
-        background: #ffffff; 
-        border: 1px solid #e2e8f0;
-        border-radius: 12px; 
-        padding: 12px 16px; 
-        margin-bottom: 14px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03); 
-    }
-
-    .timeline-card::before {
-        content: ''; 
-        position: absolute; 
-        left: -27px; 
-        top: 16px; 
-        width: 12px; 
-        height: 12px;
-        border-radius: 50%; 
-        background-color: #6366f1; 
-        border: 3px solid #ffffff;
-    }
-
-    .timeline-time {
-        display: inline-flex; 
-        align-items: center; 
-        background: #e0e7ff;
-        color: #3730a3; 
-        font-size: 10.5px; 
-        font-weight: 700; 
-        padding: 2px 8px; 
-        border-radius: 10px; 
-        margin-bottom: 6px;
-    }
-
-    .timeline-desc { 
-        color: #0f172a; 
-        font-size: 13px; 
-        font-weight: 500; 
-        line-height: 1.4; 
-        margin: 0; 
-    }
-
     .digital-signature-badge {
         display: inline-block; 
         background: #ecfdf5; 
@@ -322,7 +273,7 @@ def generate_digital_signature(user_role, user_name, doc_id):
 
 def catat_log(item, pesan, digital_sig=None):
     wib = pytz.timezone("Asia/Jakarta")
-    waktu_sekarang = datetime.now(wib).strftime("%d/%m/%Y %H:%M:%S")
+    waktu_sekarang = datetime.now(wib).strftime("%Y-%m-%d %H:%M")
     log_entry = {"waktu": waktu_sekarang, "pesan": pesan}
     if digital_sig:
         log_entry["signature"] = digital_sig
@@ -330,40 +281,150 @@ def catat_log(item, pesan, digital_sig=None):
         item["timeline"] = []
     item["timeline"].append(log_entry)
 
-def render_timeline(timeline_list):
-    if not timeline_list:
-        st.caption("Belum ada riwayat aktivitas.")
-        return
+def render_enhanced_timeline(timeline_data):
+    """
+    Merender timeline horizontal modern (zig-zag atas-bawah) lengkap dengan stempel waktu,
+    aktor, deskripsi, dan penanda status visual (done, active, pending).
+    """
+    timeline_css = """
+    <style>
+    .opb-timeline-wrapper {
+        padding: 20px 0;
+        font-family: 'Inter', sans-serif;
+    }
+    .tl-container {
+        display: flex;
+        justify-content: space-between;
+        position: relative;
+        margin: 50px 0 30px 0;
+        width: 100%;
+    }
+    .tl-line {
+        position: absolute;
+        top: 50%;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: #e2e8f0;
+        transform: translateY(-50%);
+        z-index: 1;
+    }
+    .tl-item {
+        position: relative;
+        z-index: 2;
+        text-align: center;
+        width: 22%;
+    }
+    .tl-node-done {
+        background: #10b981 !important;
+        border-color: #d1fae5 !important;
+        color: white !important;
+    }
+    .tl-node-active {
+        background: #f59e0b !important;
+        border-color: #fef3c7 !important;
+        color: white !important;
+        box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+    }
+    .tl-node-pending {
+        background: #cbd5e1 !important;
+        border-color: #f1f5f9 !important;
+        color: #64748b !important;
+    }
+    .tl-node {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 13px;
+        border: 4px solid #fff;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    .tl-content-top {
+        position: absolute;
+        bottom: 58px;
+        width: 100%;
+        text-align: center;
+        padding: 0 5px;
+    }
+    .tl-content-bottom {
+        position: absolute;
+        top: 52px;
+        width: 100%;
+        text-align: center;
+        padding: 0 5px;
+    }
+    .tl-title {
+        font-weight: 700;
+        font-size: 13px;
+        color: #1e293b;
+        margin-bottom: 2px;
+    }
+    .tl-actor {
+        font-size: 11px;
+        color: #475569;
+        font-weight: 600;
+        margin-bottom: 2px;
+    }
+    .tl-time {
+        font-size: 10px;
+        background: #f1f5f9;
+        padding: 2px 6px;
+        border-radius: 4px;
+        color: #334155;
+        display: inline-block;
+        margin-bottom: 4px;
+        border: 1px solid #e2e8f0;
+    }
+    .tl-desc {
+        font-size: 10px;
+        color: #64748b;
+        line-height: 1.2;
+    }
+    </style>
+    """
+    
+    html_code = f"""
+    {timeline_css}
+    <div class="opb-timeline-wrapper">
+        <div class="tl-container">
+            <div class="tl-line"></div>
+    """
+    
+    for i, step in enumerate(timeline_data):
+        is_top = (i % 2 == 0)
+        content_class = "tl-content-top" if is_top else "tl-content-bottom"
+        
+        status_class = "tl-node-pending"
+        if step.get('status') == 'done':
+            status_class = "tl-node-done"
+        elif step.get('status') == 'active':
+            status_class = "tl-node-active"
+            
+        content_block = f"""
+        <div class="{content_class}">
+            <div class="tl-title">{step['step']}. {step['title']}</div>
+            <div class="tl-actor">👤 {step['actor']}</div>
+            <div class="tl-time">🕒 {step['time']}</div>
+            <div class="tl-desc">{step['desc']}</div>
+        </div>
+        """
+        
+        html_code += f"""
+        <div class="tl-item">
+            {content_block if is_top else ''}
+            <div class="tl-node {status_class}">{step['step']}</div>
+            {content_block if not is_top else ''}
+        </div>
+        """
+        
+    html_code += "</div></div>"
+    st.markdown(html_code, unsafe_allow_html=True)
 
-    st.markdown("<div class='timeline-container'>", unsafe_allow_html=True)
-    for log_entry in timeline_list:
-        if isinstance(log_entry, dict):
-            waktu_log = log_entry.get("waktu", "")
-            pesan_log = log_entry.get("pesan", "")
-            sig = log_entry.get("signature", None)
-        else:
-            waktu_log = "Log"
-            pesan_log = str(log_entry)
-            sig = None
-
-        sig_badge_html = ""
-        if sig:
-            sig_badge_html = f"""
-            <br><span class="digital-signature-badge">
-                🔏 Signed by <b>{sig.get('signed_by', '-')}</b> ({sig.get('role', '-')}) | {sig.get('hash', '-')}
-            </span>
-            """
-
-        st.markdown(
-            f"""
-            <div class="timeline-card">
-                <span class="timeline-time">⏱️ {waktu_log}</span>
-                <p class="timeline-desc">{pesan_log}{sig_badge_html}</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    st.markdown("</div>", unsafe_allow_html=True)
 
 def render_download_buttons(item, key_prefix="dl"):
     col1, col2, col3 = st.columns([1, 1, 1])
@@ -624,7 +685,7 @@ else:
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-       # TABEL / METRIK BUDGETING 1 MILIAR PER DIVISI (Hanya tampil untuk selain Engineering)
+        # TABEL / METRIK BUDGETING 1 MILIAR PER DIVISI (Hanya tampil untuk selain Engineering)
         if role != "Engineering":
             with st.expander("💳 **RINCIAN BUDGET & SISA ANGGARAN PER DIVISI (ALOKASI @ Rp 1 MILIAR)**", expanded=True):
                 b_cols = st.columns(len(budget_summary))
@@ -727,9 +788,67 @@ else:
 
                 render_download_buttons(item, key_prefix=f"dash_{idx}")
 
+                # --- IMPLEMENTASI TIMELINE HORIZONTAL MODERN ---
                 timeline_list = item.get("timeline", [])
-                with st.expander(f"📜 Timeline & Jejak Verifikasi ({len(timeline_list)} Aktivitas)"):
-                    render_timeline(timeline_list)
+                
+                # Memetakan tahapan baku ke timeline visual interaktif
+                steps_visual = []
+                # Tentukan mapping stage standar
+                standard_stages = [
+                    {"step": "01", "title": "Pengajuan", "actor": f"Divisi {item.get('divisi','IT')}", "desc": "OPB dibuat & diajukan."},
+                    {"step": "02", "title": "Review BM", "actor": "Building Management", "desc": "Validasi spesifikasi teknis."},
+                    {"step": "03", "title": "Approval / IOM", "actor": "Finance & P3SRS", "desc": "Verifikasi budget & persetujuan."},
+                    {"step": "04", "title": "Eksekusi & BAST", "actor": "Purchasing & Engineering", "desc": "Pengadaan & serah terima."}
+                ]
+                
+                # Cari timestamp dari log timeline jika ada yang cocok
+                for s_idx, st_info in enumerate(standard_stages):
+                    match_time = "Menunggu..."
+                    st_status = "pending"
+                    
+                    if prog_pct == 100:
+                        st_status = "done"
+                        match_time = "Selesai"
+                    elif s_idx < int(prog_pct / 25):
+                        st_status = "done"
+                        match_time = "Selesai"
+                    elif s_idx == int(prog_pct / 25) or (prog_pct == 25 and s_idx == 0):
+                        st_status = "active"
+                        match_time = "Sedang Berjalan"
+                    
+                    # Coba ambil detail jam/tanggal dari riwayat log jika tersedia
+                    for log_item in timeline_list:
+                        if isinstance(log_item, dict):
+                            msg = log_item.get("pesan", "").lower()
+                            if s_idx == 0 and ("dibuat" in msg or "pengajuan" in msg):
+                                match_time = log_item.get("waktu", match_time)
+                            elif s_idx == 1 and ("bm" in msg):
+                                match_time = log_item.get("waktu", match_time)
+                            elif s_idx == 2 and ("finance" in msg or "p3srs" in msg):
+                                match_time = log_item.get("waktu", match_time)
+                            elif s_idx == 3 and ("barang" in msg or "bast" in msg or "diterima" in msg):
+                                match_time = log_item.get("waktu", match_time)
+
+                    steps_visual.append({
+                        "step": st_info["step"],
+                        "title": st_info["title"],
+                        "actor": st_info["actor"],
+                        "time": match_time,
+                        "status": st_status,
+                        "desc": st_info["desc"]
+                    })
+
+                with st.expander(f"📈 Grafik Timeline & Detail Jejak Aktivitas ({len(timeline_list)})"):
+                    render_enhanced_timeline(steps_visual)
+                    st.markdown("---")
+                    st.markdown("##### 📜 Riwayat Log Pesan Sistem:")
+                    for log_entry in timeline_list:
+                        if isinstance(log_entry, dict):
+                            w_log = log_entry.get("waktu", "")
+                            p_log = log_entry.get("pesan", "")
+                            sig = log_entry.get("signature", None)
+                            sig_html = f"<br><span class='digital-signature-badge'>🔏 Signed by <b>{sig.get('signed_by')}</b> ({sig.get('role')}) | {sig.get('hash')}</span>" if sig else ""
+                            st.markdown(f"- **[{w_log}]** {p_log}{sig_html}", unsafe_allow_html=True)
 
                 st.markdown("<hr style='margin:12px 0;'>", unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
