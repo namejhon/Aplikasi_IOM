@@ -283,118 +283,98 @@ def catat_log(item, pesan, digital_sig=None):
 
 def render_enhanced_timeline(timeline_data):
     """
-    Merender timeline horizontal modern (zig-zag atas-bawah) lengkap dengan stempel waktu,
-    aktor, deskripsi, dan penanda status visual (done, active, pending).
+    Merender timeline vertikal modern yang interaktif, bersih, 
+    dilengkapi stempel waktu, aktor, dan penanda visual tanpa risiko terpotong.
     """
     timeline_css = """
     <style>
-    .opb-timeline-wrapper {
-        padding: 10px 0;
+    .opb-timeline-container {
         font-family: 'Inter', sans-serif;
+        padding: 5px 10px;
     }
-    .tl-container {
+    .opb-tl-item {
         display: flex;
-        justify-content: space-between;
         position: relative;
-        margin: 45px 0 25px 0;
-        width: 100%;
+        padding-bottom: 20px;
     }
-    .tl-line {
+    .opb-tl-item:last-child {
+        padding-bottom: 0;
+    }
+    .opb-tl-item::before {
+        content: '';
         position: absolute;
-        top: 50%;
-        left: 0;
-        right: 0;
-        height: 4px;
+        left: 14px;
+        top: 30px;
+        bottom: 0;
+        width: 2px;
         background: #e2e8f0;
-        transform: translateY(-50%);
-        z-index: 1;
     }
-    .tl-item {
+    .opb-tl-item:last-child::before {
+        display: none;
+    }
+    .opb-tl-icon {
         position: relative;
         z-index: 2;
-        text-align: center;
-        width: 22%;
-    }
-    .tl-node-done {
-        background: #10b981 !important;
-        border-color: #d1fae5 !important;
-        color: white !important;
-    }
-    .tl-node-active {
-        background: #f59e0b !important;
-        border-color: #fef3c7 !important;
-        color: white !important;
-        box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
-    }
-    .tl-node-pending {
-        background: #cbd5e1 !important;
-        border-color: #f1f5f9 !important;
-        color: #64748b !important;
-    }
-    .tl-node {
-        width: 36px;
-        height: 36px;
+        width: 30px;
+        height: 30px;
         border-radius: 50%;
-        margin: 0 auto;
         display: flex;
         align-items: center;
         justify-content: center;
         font-weight: bold;
-        font-size: 12px;
-        border: 4px solid #fff;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        font-size: 11px;
+        flex-shrink: 0;
+        border: 2px solid #fff;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
-    .tl-content-top {
-        position: absolute;
-        bottom: 46px;
-        width: 120%;
-        left: -10%;
-        text-align: center;
-        padding: 0 2px;
-    }
-    .tl-content-bottom {
-        position: absolute;
-        top: 44px;
-        width: 120%;
-        left: -10%;
-        text-align: center;
-        padding: 0 2px;
-    }
-    .tl-title {
-        font-weight: 700;
-        font-size: 11.5px;
-        color: #1e293b;
-        margin-bottom: 1px;
-    }
-    .tl-actor {
-        font-size: 10px;
-        color: #475569;
-        font-weight: 600;
-        margin-bottom: 1px;
-    }
-    .tl-time {
-        font-size: 9.5px;
-        background: #f1f5f9;
-        padding: 1px 4px;
-        border-radius: 3px;
-        color: #334155;
-        display: inline-block;
-        margin-bottom: 2px;
+    .icon-done { background: #10b981; color: white; }
+    .icon-active { background: #f59e0b; color: white; box-shadow: 0 0 10px rgba(245, 158, 11, 0.4); }
+    
+    .opb-tl-content {
+        background: #f8fafc;
         border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 10px 14px;
+        margin-left: 12px;
+        width: 100%;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.02);
     }
-    .tl-desc {
-        font-size: 9.5px;
+    .opb-tl-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 4px;
+    }
+    .opb-tl-title {
+        font-weight: 700;
+        font-size: 12px;
+        color: #1e293b;
+    }
+    .opb-tl-actor {
+        font-size: 10.5px;
+        font-weight: 600;
+        color: #4338ca;
+        background: #e0e7ff;
+        padding: 1px 6px;
+        border-radius: 4px;
+    }
+    .opb-tl-time {
+        font-size: 10px;
         color: #64748b;
-        line-height: 1.1;
+        margin-bottom: 4px;
+    }
+    .opb-tl-desc {
+        font-size: 11px;
+        color: #334155;
+        line-height: 1.3;
     }
     </style>
     """
-    
+
     if not timeline_data:
         st.caption("Belum ada riwayat aktivitas.")
         return
 
-    # Normalisasi struktur data timeline agar kompatibel dengan perenderan grafis interaktif
     formatted_steps = []
     for i, log_entry in enumerate(timeline_data):
         if isinstance(log_entry, dict):
@@ -407,52 +387,49 @@ def render_enhanced_timeline(timeline_data):
             pesan_log = str(log_entry)
             actor_log = "Sistem"
 
+        is_last = (i == len(timeline_data) - 1)
         formatted_steps.append({
             "step": i + 1,
             "title": f"Tahap {i+1}",
             "actor": actor_log,
             "time": waktu_log,
             "desc": pesan_log,
-            "status": "done" if i < len(timeline_data) - 1 else "active"
+            "status": "active" if is_last else "done"
         })
 
-    html_code = f"""
-    {timeline_css}
-    <div class="opb-timeline-wrapper">
-        <div class="tl-container">
-            <div class="tl-line"></div>
-    """
-    
-    for i, step in enumerate(formatted_steps):
-        is_top = (i % 2 == 0)
-        content_class = "tl-content-top" if is_top else "tl-content-bottom"
-        
-        status_class = "tl-node-pending"
-        if step.get('status') == 'done':
-            status_class = "tl-node-done"
-        elif step.get('status') == 'active':
-            status_class = "tl-node-active"
-            
-        content_block = f"""
-        <div class="{content_class}">
-            <div class="tl-title">{step['step']}. {step['title']}</div>
-            <div class="tl-actor">👤 {step['actor']}</div>
-            <div class="tl-time">🕒 {step['time']}</div>
-            <div class="tl-desc">{step['desc']}</div>
-        </div>
-        """
-        
+    html_code = f"{timeline_css}<div class='opb-timeline-container'>"
+
+    for step in formatted_steps:
+        icon_cls = "icon-active" if step["status"] == "active" else "icon-done"
+        sig_badge_html = ""
+        # Cek jika log entry memiliki signature terlampir
+        if isinstance(timeline_data[step["step"]-1], dict) and timeline_data[step["step"]-1].get("signature"):
+            sig = timeline_data[step["step"]-1].get("signature")
+            sig_badge_html = f"""
+            <br><span class="digital-signature-badge">
+                🔏 Signed by <b>{sig.get('signed_by', '-')}</b> ({sig.get('role', '-')}) | {sig.get('hash', '-')}
+            </span>
+            """
+
         html_code += f"""
-        <div class="tl-item">
-            {content_block if is_top else ''}
-            <div class="tl-node {status_class}">{step['step']}</div>
-            {content_block if not is_top else ''}
+        <div class="opb-tl-item">
+            <div class="opb-tl-icon {icon_cls}">{step['step']}</div>
+            <div class="opb-tl-content">
+                <div class="opb-tl-header">
+                    <span class="opb-tl-title">{step['title']}</span>
+                    <span class="opb-tl-actor">👤 {step['actor']}</span>
+                </div>
+                <div class="opb-tl-time">🕒 {step['time']}</div>
+                <div class="opb-tl-desc">{step['desc']}{sig_badge_html}</div>
+            </div>
         </div>
         """
-        
-    html_code += "</div></div>"
+
+    html_code += "</div>"
     
-    components.html(html_code, height=170, scrolling=False)
+    # Hitung tinggi dinamis berdasarkan jumlah tahapan agar pas dan tidak ada scrollbar terpotong
+    dynamic_height = max(130, len(timeline_data) * 115)
+    components.html(html_code, height=dynamic_height, scrolling=False)
 
 def render_download_buttons(item, key_prefix="dl"):
     col1, col2, col3 = st.columns([1, 1, 1])
