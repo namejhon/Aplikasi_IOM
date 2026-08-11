@@ -668,7 +668,7 @@ else:
         st.markdown(
             f"""
             <div class="notif-box">
-                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
                     <span style="font-size:20px;">🔔</span>
                     <span style="font-size: 15px; font-weight: 700;">Notifikasi Tugas Masuk ({len(pending_tasks)} Berkas)</span>
                 </div>
@@ -676,14 +676,6 @@ else:
         """,
             unsafe_allow_html=True,
         )
-
-        btn_cols = st.columns(min(len(pending_tasks), 4))
-        for i, item_task in enumerate(pending_tasks):
-            col_idx = i % 4
-            with btn_cols[col_idx]:
-                if st.button(f"👉 {item_task.get('nomor_opb', 'OPB')}", key=f"quick_btn_{item_task.get('id', i)}", type="primary", use_container_width=True):
-                    st.session_state["target_focus_id"] = item_task.get("id")
-                    components.html('<script>window.parent.document.getElementById("anchor-kelola-opb").scrollIntoView({behavior: "smooth"});</script>', height=0)
         st.markdown("<br>", unsafe_allow_html=True)
 
     # ================= EXECUTIVE DASHBOARD & BUDGET PER DIVISI =================
@@ -805,7 +797,6 @@ else:
             st.markdown("##### 📌 Progress Live Status & Timeline Berkas")
             st.markdown("<br>", unsafe_allow_html=True)
             
-            # --- MENGGUNAKAN 1 DROPDOWN UTAMA UNTUK MEMILIH OPB ---
             opb_options = {
                 f"[{item.get('nomor_opb', '-')}] — Divisi: {item.get('divisi','IT')} | Status: {item.get('status', '1. Penawaran Purchasing')}": item 
                 for item in st.session_state["db_opb"]
@@ -843,7 +834,6 @@ else:
 
                 render_download_buttons(selected_item, key_prefix="single_select_dl")
                 
-                # --- TOMBOL KIRIM EMAIL OTOMATIS OUTLOOK ---
                 mailto_link = generate_outlook_mailto_link(selected_item)
                 st.markdown(f'<a href="{mailto_link}" target="_blank" style="display:inline-block; background:#0284c7; color:white; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:bold; margin-top:8px;">📧 Kirim Auto Email (Outlook)</a>', unsafe_allow_html=True)
 
