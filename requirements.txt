@@ -8,7 +8,6 @@ requests
 extra-streamlit-components
 streamlit-autorefresh
 supabase
-pandas
 plotly
 reportlab
 xlsxwriter
