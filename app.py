@@ -800,28 +800,15 @@ else:
             st.markdown("##### 📌 Progress Live Status & Timeline Berkas")
             st.markdown("<br>", unsafe_allow_html=True)
             
-            # --- MENGGUNAKAN SELECTBOX STANDAR STREAMLIT ---
+            # --- MENGGUNAKAN 1 DROPDOWN UTAMA UNTUK MEMILIH OPB ---
             opb_options = {
                 f"[{item.get('nomor_opb', '-')}] — Divisi: {item.get('divisi','IT')} | Status: {item.get('status', '1. Penawaran Purchasing')}": item 
                 for item in st.session_state["db_opb"]
             }
             
-            label_keys = list(opb_options.keys())
-            default_index = 0
-            
-            # Jika tombol quick action di atas diklik, cari indeks opsi yang sesuai dengan target_focus_id
-            if st.session_state["target_focus_id"] is not None:
-                for idx, (lbl, itm) in enumerate(opb_options.items()):
-                    if itm.get("id") == st.session_state["target_focus_id"]:
-                        default_index = idx
-                        break
-
             selected_opb_label = st.selectbox(
-                "Pilih Dokumen OPB",
-                options=label_keys,
-                index=default_index,
-                placeholder="Pilih dokumen OPB...",
-                key="selectbox_opb_dashboard"
+                "🔍 Pilih Dokumen OPB untuk Dilihat Detailnya:",
+                options=list(opb_options.keys())
             )
             
             if selected_opb_label:
