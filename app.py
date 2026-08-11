@@ -51,7 +51,7 @@ INITIAL_BUDGETS = {div: 1_000_000_000 for div in DIVISI_LIST}
 
 # --- 2. FUNGSI PERSISTENSI DATA (SUPABASE STORAGE & DB) ---
 def upload_file_to_supabase(file_bytes, file_name, folder="opb"):
-    """Mengunggah file ke Supabase Storage dan mengembalikan URL Publiknya[cite: 2]."""
+    """Mengunggah file ke Supabase Storage dan mengembalikan URL Publiknya."""
     if not file_bytes:
         return None
     try:
@@ -74,7 +74,7 @@ def upload_file_to_supabase(file_bytes, file_name, folder="opb"):
 
 
 def load_database():
-    """Membaca seluruh data OPB dari tabel Supabase dengan Sanitasi Data[cite: 2]."""
+    """Membaca seluruh data OPB dari tabel Supabase dengan Sanitasi Data."""
     try:
         response = (
             supabase.table("opb_data")
@@ -112,7 +112,7 @@ def load_database():
 
 
 def save_database(item_data, is_new=False):
-    """Menyimpan item ke Supabase dengan Debugging Error Terperinci[cite: 2]."""
+    """Menyimpan item ke Supabase dengan Debugging Error Terperinci."""
     try:
         db_payload = {
             "nama_barang": str(item_data.get("nama_barang", "")),
@@ -636,8 +636,13 @@ else:
         unsafe_allow_html=True,
     )
 
+    # --- DROPDOWN SELECT / ACCORDION UNTUK TUGAS MENUNGGU DI SIDEBAR ---
     if pending_tasks:
-        st.sidebar.warning(f"🔔 **{len(pending_tasks)} Tugas Menunggu**")
+        with st.sidebar.expander(f"🔔 {len(pending_tasks)} Tugas Menunggu", expanded=False):
+            for item_task in pending_tasks:
+                if st.button(f"👉 {item_task.get('nomor_opb', 'OPB')}", key=f"sidebar_quick_btn_{item_task.get('id', 0)}", use_container_width=True):
+                    st.session_state["target_focus_id"] = item_task.get("id")
+                    components.html('<script>window.parent.document.getElementById("anchor-kelola-opb").scrollIntoView({behavior: "smooth"});</script>', height=0)
 
     if st.sidebar.button("🚪 Keluar / Logout", use_container_width=True):
         st.session_state["logged_in"] = False
