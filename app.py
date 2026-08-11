@@ -797,11 +797,23 @@ else:
 
         with col_dash1:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
-            st.markdown("##### 📌 Progress Live Status & Timeline Berkas (Dropdown Mode)")
+            st.markdown("##### 📌 Progress Live Status & Timeline Berkas")
             st.markdown("<br>", unsafe_allow_html=True)
             
-            for idx, item in enumerate(st.session_state["db_opb"]):
-                status_curr = item.get("status") or "1. Penawaran Purchasing"
+            # --- MENGGUNAKAN 1 DROPDOWN UTAMA UNTUK MEMILIH OPB ---
+            opb_options = {
+                f"[{item.get('nomor_opb', '-')}] — Divisi: {item.get('divisi','IT')} | Status: {item.get('status', '1. Penawaran Purchasing')}": item 
+                for item in st.session_state["db_opb"]
+            }
+            
+            selected_opb_label = st.selectbox(
+                "🔍 Pilih Dokumen OPB untuk Dilihat Detailnya:",
+                options=list(opb_options.keys())
+            )
+            
+            if selected_opb_label:
+                selected_item = opb_options[selected_opb_label]
+                status_curr = selected_item.get("status") or "1. Penawaran Purchasing"
 
                 if "Revisi" in str(status_curr):
                     prog_pct = 25
@@ -811,31 +823,28 @@ else:
                 else:
                     prog_pct = 0
 
-                harga_est = item.get('harga_estimasi', 0) or 0
+                harga_est = selected_item.get('harga_estimasi', 0) or 0
                 
-                # --- MENGGUNAKAN DROPDOWN (st.expander) UNTUK SETIAP BERKAS AGAR TIDAK PUSING / RAPI ---
-                expander_label = f"📁 [{item.get('nomor_opb', '-')}] — Divisi: {item.get('divisi','IT')} | Status: {status_curr} ({prog_pct}%)"
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown(f"**Urgensi:** `{selected_item.get('urgensi','Normal')}`")
+                c_a, c_b = st.columns([4, 1])
+                with c_a:
+                    st.progress(prog_pct)
+                with c_b:
+                    st.caption(f"**{prog_pct}%**")
                 
-                with st.expander(expander_label, expanded=False):
-                    st.markdown(f"**Urgensi:** `{item.get('urgensi','Normal')}`")
-                    c_a, c_b = st.columns([4, 1])
-                    with c_a:
-                        st.progress(prog_pct)
-                    with c_b:
-                        st.caption(f"**{prog_pct}%**")
-                    
-                    st.markdown(f"📦 **Daftar Barang:** {item.get('nama_barang', '-')}")
-                    st.caption(f"📍 Status: `{status_curr}` | 💰 Est Biaya: **Rp {harga_est:,}**")
+                st.markdown(f"📦 **Daftar Barang:** {selected_item.get('nama_barang', '-')}")
+                st.caption(f"📍 Status: `{status_curr}` | 💰 Est Biaya: **Rp {harga_est:,}**")
 
-                    render_download_buttons(item, key_prefix=f"dash_{idx}")
-                    
-                    # --- TOMBOL KIRIM EMAIL OTOMATIS OUTLOOK ---
-                    mailto_link = generate_outlook_mailto_link(item)
-                    st.markdown(f'<a href="{mailto_link}" target="_blank" style="display:inline-block; background:#0284c7; color:white; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:bold; margin-top:8px;">📧 Kirim Auto Email (Outlook)</a>', unsafe_allow_html=True)
+                render_download_buttons(selected_item, key_prefix="single_select_dl")
+                
+                # --- TOMBOL KIRIM EMAIL OTOMATIS OUTLOOK ---
+                mailto_link = generate_outlook_mailto_link(selected_item)
+                st.markdown(f'<a href="{mailto_link}" target="_blank" style="display:inline-block; background:#0284c7; color:white; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:bold; margin-top:8px;">📧 Kirim Auto Email (Outlook)</a>', unsafe_allow_html=True)
 
-                    timeline_list = item.get("timeline", [])
-                    st.markdown("<br><h6>📜 Jejak Timeline Verifikasi:</h6>", unsafe_allow_html=True)
-                    render_enhanced_timeline(timeline_list)
+                timeline_list = selected_item.get("timeline", [])
+                st.markdown("<br><h6>📜 Jejak Timeline Verifikasi:</h6>", unsafe_allow_html=True)
+                render_enhanced_timeline(timeline_list)
 
             st.markdown("</div>", unsafe_allow_html=True)
 
