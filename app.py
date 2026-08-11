@@ -677,8 +677,14 @@ else:
             col_idx = i % 4
             with btn_cols[col_idx]:
                 if st.button(f"👉 {item_task.get('nomor_opb', 'OPB')}", key=f"quick_btn_{item_task.get('id', i)}", type="primary", use_container_width=True):
+                    # --- PERBAIKAN: Set target focus ID dan langsung arahkan (scroll) ke lokasi file/panel terkait ---
                     st.session_state["target_focus_id"] = item_task.get("id")
-                    components.html('<script>window.parent.document.getElementById("anchor-kelola-opb").scrollIntoView({behavior: "smooth"});</script>', height=0)
+                    components.html(
+                        '<script>'
+                        'window.parent.document.getElementById("anchor-kelola-opb").scrollIntoView({behavior: "smooth"});'
+                        '</script>', 
+                        height=0
+                    )
         st.markdown("<br>", unsafe_allow_html=True)
 
     # ================= EXECUTIVE DASHBOARD & BUDGET PER DIVISI =================
@@ -800,7 +806,6 @@ else:
             st.markdown("##### 📌 Progress Live Status & Timeline Berkas")
             st.markdown("<br>", unsafe_allow_html=True)
             
-            # --- MENGGUNAKAN 1 DROPDOWN UTAMA UNTUK MEMILIH OPB ---
             opb_options = {
                 f"[{item.get('nomor_opb', '-')}] — Divisi: {item.get('divisi','IT')} | Status: {item.get('status', '1. Penawaran Purchasing')}": item 
                 for item in st.session_state["db_opb"]
@@ -838,7 +843,6 @@ else:
 
                 render_download_buttons(selected_item, key_prefix="single_select_dl")
                 
-                # --- TOMBOL KIRIM EMAIL OTOMATIS OUTLOOK ---
                 mailto_link = generate_outlook_mailto_link(selected_item)
                 st.markdown(f'<a href="{mailto_link}" target="_blank" style="display:inline-block; background:#0284c7; color:white; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:bold; margin-top:8px;">📧 Kirim Auto Email (Outlook)</a>', unsafe_allow_html=True)
 
