@@ -800,19 +800,20 @@ else:
             st.markdown("##### 📌 Progress Live Status & Timeline Berkas")
             st.markdown("<br>", unsafe_allow_html=True)
             
-            # --- MENGGUNAKAN SEARCHABLE SELECTBOX (SLEEK DROPDOWN) ---
+            # --- MENGGUNAKAN SELECTBOX STANDAR STREAMLIT (MENGGANTIKAN SEARCHABLE_SELECTBOX) ---
             opb_options = {
                 f"[{item.get('nomor_opb', '-')}] — Divisi: {item.get('divisi','IT')} | Status: {item.get('status', '1. Penawaran Purchasing')}": item 
                 for item in st.session_state["db_opb"]
             }
             
-            selected_opb_label = stx.searchable_selectbox(
+            selected_opb_label = st.selectbox(
+                "Pilih Dokumen OPB",
                 options=list(opb_options.keys()),
-                placeholder="🔍 Ketik atau pilih dokumen OPB...",
-                key="sleek_searchable_opb_dropdown"
+                placeholder="Pilih dokumen OPB...",
+                key="selectbox_opb_dashboard"
             )
             
-            if selected_opb_label and selected_opb_label in opb_options:
+            if selected_opb_label:
                 selected_item = opb_options[selected_opb_label]
                 status_curr = selected_item.get("status") or "1. Penawaran Purchasing"
 
