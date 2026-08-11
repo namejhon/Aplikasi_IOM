@@ -13,6 +13,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_autorefresh import st_autorefresh
 from supabase import Client, create_client
+import urllib.parse
 
 # --- 1. KONFIGURASI HALAMAN ---
 st.set_page_config(
@@ -50,7 +51,7 @@ INITIAL_BUDGETS = {div: 1_000_000_000 for div in DIVISI_LIST}
 
 # --- 2. FUNGSI PERSISTENSI DATA (SUPABASE STORAGE & DB) ---
 def upload_file_to_supabase(file_bytes, file_name, folder="opb"):
-    """Mengunggah file ke Supabase Storage dan mengembalikan URL Publiknya[cite: 2]."""
+    """Mengunggah file ke Supabase Storage dan mengembalikan URL Publiknya."""
     if not file_bytes:
         return None
     try:
@@ -73,7 +74,7 @@ def upload_file_to_supabase(file_bytes, file_name, folder="opb"):
 
 
 def load_database():
-    """Membaca seluruh data OPB dari tabel Supabase dengan Sanitasi Data[cite: 2]."""
+    """Membaca seluruh data OPB dari tabel Supabase dengan Sanitasi Data."""
     try:
         response = (
             supabase.table("opb_data")
@@ -111,7 +112,7 @@ def load_database():
 
 
 def save_database(item_data, is_new=False):
-    """Menyimpan item ke Supabase dengan Debugging Error Terperinci[cite: 2]."""
+    """Menyimpan item ke Supabase dengan Debugging Error Terperinci."""
     try:
         db_payload = {
             "nama_barang": str(item_data.get("nama_barang", "")),
@@ -184,7 +185,7 @@ def convert_df_to_excel(df):
     return processed_data
 
 
-# --- 3. RESPONSIVE CUSTOM CSS ---
+# --- 3. RESPONSIVE CUSTOM CSS & ANIMASI DARURAT ---
 st.markdown(
     """
     <style>
@@ -244,6 +245,29 @@ st.markdown(
         font-family: monospace; 
         word-break: break-all;
     }
+
+    /* Styling Khusus Card Berkas Darurat */
+    .card-darurat {
+        border: 2px solid #ef4444 !important;
+        background: linear-gradient(135deg, #fff5f5 0%, #ffffff 100%) !important;
+        box-shadow: 0 0 15px rgba(239, 68, 68, 0.25) !important;
+    }
+    @keyframes pulse-border {
+        0% { border-color: #ef4444; }
+        50% { border-color: #b91c1c; box-shadow: 0 0 20px rgba(239, 68, 68, 0.5); }
+        100% { border-color: #ef4444; }
+    }
+    .badge-darurat-anim {
+        background-color: #ef4444;
+        color: white;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-weight: 800;
+        font-size: 11px;
+        animation: pulse-border 1.5s infinite;
+        display: inline-block;
+        letter-spacing: 0.5px;
+    }
     </style>
 """,
     unsafe_allow_html=True,
@@ -258,7 +282,7 @@ USERS = {
     "p3srs": {"password": "p3srs123", "name": "Pengurus P3SRS", "role": "P3SRS"},
 }
 
-# --- 5. LOG & TANDA TANGAN DIGITAL ---
+# --- 5. LOG, TANDA TANGAN DIGITAL & OUTLOOK POP-UP ---
 def generate_digital_signature(user_role, user_name, doc_id):
     wib = pytz.timezone("Asia/Jakarta")
     waktu = datetime.now(wib).strftime("%Y-%m-%d %H:%M:%S")
@@ -281,93 +305,52 @@ def catat_log(item, pesan, digital_sig=None):
         item["timeline"] = []
     item["timeline"].append(log_entry)
 
+def generate_outlook_mailto_link(item):
+    """Membuat link URI mailto untuk memicu pop-up Outlook otomatis beserta tanda darurat."""
+    nomor_opb = item.get('nomor_opb', 'OPB')
+    divisi = item.get('divisi', 'IT')
+    nama_barang = item.get('nama_barang', '-')
+    status = item.get('status', '-')
+    harga = item.get('harga_estimasi', 0)
+    urgensi = item.get('urgensi', 'Normal')
+    
+    is_darurat = "darurat" in urgensi.lower()
+    prefix_subjek = "🚨 [URGENT/DARURAT] " if is_darurat else "📋 "
+    
+    subject = urllib.parse.quote(f"{prefix_subjek}Tindak Lanjut OPB: {nomor_opb} - Divisi {divisi}")
+    body = urllib.parse.quote(
+        f"{'⚠️ PERHATIAN: BERKAS INI BERSTATUS DARURAT (1x24 JAM) ⚠️\n\n' if is_darurat else ''}"
+        f"Halo Tim,\n\n"
+        f"Terdapat pembaruan/pengajuan dokumen OPB/IOM yang memerlukan tindakan pada Sistem P3SRS:\n\n"
+        f"- Nomor OPB: {nomor_opb}\n"
+        f"- Tingkat Urgensi: {urgensi}\n"
+        f"- Divisi Pemohon: {divisi}\n"
+        f"- Rincian Barang: {nama_barang}\n"
+        f"- Estimasi Biaya: Rp {harga:,.0f}\n"
+        f"- Status Berkas: {status}\n\n"
+        f"Silakan akses portal aplikasi untuk melakukan proses verifikasi.\n\n"
+        f"Terima kasih.\n"
+        f"(Notifikasi Otomatis Sistem Flow OPB & IOM - P3SRS)"
+    )
+    return f"mailto:?subject={subject}&body={body}"
+
 def render_enhanced_timeline(timeline_data):
-    """
-    Merender timeline vertikal modern yang interaktif, bersih, 
-    dilengkapi stempel waktu, aktor, dan penanda visual tanpa risiko terpotong.
-    """
     timeline_css = """
     <style>
-    .opb-timeline-container {
-        font-family: 'Inter', sans-serif;
-        padding: 5px 10px;
-    }
-    .opb-tl-item {
-        display: flex;
-        position: relative;
-        padding-bottom: 20px;
-    }
-    .opb-tl-item:last-child {
-        padding-bottom: 0;
-    }
-    .opb-tl-item::before {
-        content: '';
-        position: absolute;
-        left: 14px;
-        top: 30px;
-        bottom: 0;
-        width: 2px;
-        background: #e2e8f0;
-    }
-    .opb-tl-item:last-child::before {
-        display: none;
-    }
-    .opb-tl-icon {
-        position: relative;
-        z-index: 2;
-        width: 30px;
-        height: 30px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: bold;
-        font-size: 11px;
-        flex-shrink: 0;
-        border: 2px solid #fff;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
+    .opb-timeline-container { font-family: 'Inter', sans-serif; padding: 5px 10px; }
+    .opb-tl-item { display: flex; position: relative; padding-bottom: 20px; }
+    .opb-tl-item:last-child { padding-bottom: 0; }
+    .opb-tl-item::before { content: ''; position: absolute; left: 14px; top: 30px; bottom: 0; width: 2px; background: #e2e8f0; }
+    .opb-tl-item:last-child::before { display: none; }
+    .opb-tl-icon { position: relative; z-index: 2; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 11px; flex-shrink: 0; border: 2px solid #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
     .icon-done { background: #10b981; color: white; }
     .icon-active { background: #f59e0b; color: white; box-shadow: 0 0 10px rgba(245, 158, 11, 0.4); }
-    
-    .opb-tl-content {
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 10px;
-        padding: 10px 14px;
-        margin-left: 12px;
-        width: 100%;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-    }
-    .opb-tl-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 4px;
-    }
-    .opb-tl-title {
-        font-weight: 700;
-        font-size: 12px;
-        color: #1e293b;
-    }
-    .opb-tl-actor {
-        font-size: 10.5px;
-        font-weight: 600;
-        color: #4338ca;
-        background: #e0e7ff;
-        padding: 1px 6px;
-        border-radius: 4px;
-    }
-    .opb-tl-time {
-        font-size: 10px;
-        color: #64748b;
-        margin-bottom: 4px;
-    }
-    .opb-tl-desc {
-        font-size: 11px;
-        color: #334155;
-        line-height: 1.3;
-    }
+    .opb-tl-content { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 14px; margin-left: 12px; width: 100%; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
+    .opb-tl-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .opb-tl-title { font-weight: 700; font-size: 12px; color: #1e293b; }
+    .opb-tl-actor { font-size: 10.5px; font-weight: 600; color: #4338ca; background: #e0e7ff; padding: 1px 6px; border-radius: 4px; }
+    .opb-tl-time { font-size: 10px; color: #64748b; margin-bottom: 4px; }
+    .opb-tl-desc { font-size: 11px; color: #334155; line-height: 1.3; }
     </style>
     """
 
@@ -425,12 +408,10 @@ def render_enhanced_timeline(timeline_data):
         """
 
     html_code += "</div>"
-    
-    dynamic_height = max(130, len(timeline_data) * 115)
-    components.html(html_code, height=dynamic_height, scrolling=False)
+    components.html(html_code, height=max(130, len(timeline_data) * 115), scrolling=False)
 
 def render_download_buttons(item, key_prefix="dl"):
-    col1, col2, col3 = st.columns([1, 1, 1])
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
     with col1:
         if item.get("file_opb_url"):
             st.markdown(f"[📥 Download OPB]({item['file_opb_url']})")
@@ -456,6 +437,24 @@ def render_download_buttons(item, key_prefix="dl"):
             st.markdown(f"[📦 Download BAST]({item['file_bast_url']})")
         else:
             st.caption("ℹ️ BAST Belum Ada")
+
+    with col4:
+        # Tombol Pop-up Outlook Email otomatis dengan pembedaan warna jika Darurat
+        mailto_url = generate_outlook_mailto_link(item)
+        is_darurat = "darurat" in item.get('urgensi', '').lower()
+        bg_color = "#dc2626" if is_darurat else "#0078d4"
+        btn_label = "🚨 Email Darurat" if is_darurat else "📧 Email Outlook"
+        
+        st.markdown(
+            f"""
+            <a href="{mailto_url}" target="_blank" style="text-decoration: none;">
+                <div style="background-color: {bg_color}; color: white; text-align: center; padding: 6px 8px; border-radius: 6px; font-size: 11.5px; font-weight: 700; margin-top: 2px; box-shadow: 0 2px 5px rgba(0,0,0,0.15);">
+                    {btn_label}
+                </div>
+            </a>
+            """,
+            unsafe_allow_html=True
+        )
 
 def render_signature_pad(key_id):
     canvas_html = f"""
@@ -768,6 +767,8 @@ else:
             st.markdown("<br>", unsafe_allow_html=True)
             for idx, item in enumerate(st.session_state["db_opb"]):
                 status_curr = item.get("status") or "1. Penawaran Purchasing"
+                urgensi_val = item.get("urgensi", "Normal")
+                is_darurat = "darurat" in urgensi_val.lower()
 
                 if "Revisi" in str(status_curr):
                     prog_pct = 25
@@ -777,7 +778,20 @@ else:
                 else:
                     prog_pct = 0
 
-                st.markdown(f"**{item.get('nomor_opb', '-')}** — `{item.get('divisi','IT')}` | Urgensi: `{item.get('urgensi','Normal')}`")
+                # Tampilan khusus jika berstatus Darurat
+                if is_darurat:
+                    st.markdown(
+                        f"""
+                        <div style="border: 2px solid #ef4444; background: #fff5f5; padding: 12px; border-radius: 12px; margin-bottom: 12px;">
+                            <span class="badge-darurat-anim">🚨 DARURAT (1x24 JAM)</span> 
+                            &nbsp;<b>{item.get('nomor_opb', '-')}</b> — <span style="color:#b91c1c; font-weight:bold;">{item.get('divisi','IT')}</span>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+                else:
+                    st.markdown(f"**{item.get('nomor_opb', '-')}** — `{item.get('divisi','IT')}` | Urgensi: `{urgensi_val}`")
+
                 c_a, c_b = st.columns([4, 1])
                 with c_a:
                     st.progress(prog_pct)
@@ -874,10 +888,8 @@ else:
                 if nama_barang:
                     with st.spinner("Menyimpan berkas..."):
                         file_url = None
-                        file_name = "-"
                         if file_opb:
                             file_url = upload_file_to_supabase(file_opb.getvalue(), file_opb.name, folder="opb")
-                            file_name = file_opb.name
 
                         sig_eng = generate_digital_signature("Engineering", user_info["name"], nomor_opb_auto)
                         data_baru = {
@@ -945,7 +957,11 @@ else:
             for item in items:
                 is_expanded = (st.session_state["target_focus_id"] == item.get("id"))
                 item_id = item.get("id", 0)
-                with st.expander(f"📌 {item.get('nomor_opb', '-')} - {item.get('nama_barang', '-')}", expanded=is_expanded):
+                is_darurat = "darurat" in item.get('urgensi', '').lower()
+                
+                expander_label = f"🚨 [DARURAT] {item.get('nomor_opb', '-')} - {item.get('nama_barang', '-')}" if is_darurat else f"📌 {item.get('nomor_opb', '-')} - {item.get('nama_barang', '-')}"
+                
+                with st.expander(expander_label, expanded=is_expanded):
                     st.write(f"**Divisi Pemohon:** {item.get('divisi','IT')} | **Urgensi:** {item.get('urgensi','Normal')}")
                     st.write(f"**Detail:** {item.get('nama_barang', '-')}")
                     render_download_buttons(item, key_prefix=f"pur_tab1_{item_id}")
