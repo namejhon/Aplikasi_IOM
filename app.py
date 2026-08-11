@@ -1,4 +1,4 @@
-[cite: 2]import base64
+import base64
 import hashlib
 import io
 import json
@@ -1218,4 +1218,3 @@ else:
                         st.session_state["target_focus_id"] = None
                         st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
-```[cite: 2]
