@@ -187,7 +187,6 @@ def convert_df_to_excel(df):
 
 # --- FUNGSI GENERATE EMAIL AUTO POP-UP OUTLOOK ---
 def generate_outlook_mailto_link(item, target_email="purchasing@p3srs.com"):
-    """Membuat link URI mailto dengan tujuan email, subjek, dan isi yang otomatis terisi."""
     nomor_opb = item.get('nomor_opb', 'OPB')
     divisi = item.get('divisi', 'IT')
     nama_barang = item.get('nama_barang', '-')
@@ -571,6 +570,8 @@ if "notif_shown" not in st.session_state:
     st.session_state["notif_shown"] = False
 if "target_focus_id" not in st.session_state:
     st.session_state["target_focus_id"] = None
+if "active_tab_index" not in st.session_state:
+    st.session_state["active_tab_index"] = 0
 
 
 # ==================== HALAMAN LOGIN ====================
@@ -636,14 +637,28 @@ else:
         unsafe_allow_html=True,
     )
 
-    # --- DROPDOWN SELECT / ACCORDION UNTUK TUGAS MENUNGGU DI SIDEBAR ---
+    # --- SIDEBAR SHORTCUT DAFTAR TUGAS ---
     if pending_tasks:
-        with st.sidebar.expander(f"🔔 {len(pending_tasks)} Tugas Menunggu", expanded=False):
-            for item_task in pending_tasks:
-                if st.button(f"👉 {item_task.get('nomor_opb', 'OPB')}", key=f"sidebar_quick_btn_{item_task.get('id', 0)}", use_container_width=True):
-                    st.session_state["target_focus_id"] = item_task.get("id")
-                    components.html('<script>window.parent.document.getElementById("anchor-kelola-opb").scrollIntoView({behavior: "smooth"});</script>', height=0)
+        st.sidebar.markdown("##### ⚡ Pintasan Tugas Cepat")
+        for item_task in pending_tasks:
+            t_status = item_task.get("status", "")
+            # Auto tentukan tab tujuan berdasarkan status dokumen
+            target_tab = 0
+            if role == "Purchasing":
+                if t_status in ["3. Pembuatan IOM (Purchasing)", "Revisi Finance", "Revisi BM/P3SRS (IOM)"]:
+                    target_tab = 1
+                elif t_status in ["6. Serah Terima Barang (Purchasing -> Engineering)", "6. Pembelian Barang (Purchasing)"]:
+                    target_tab = 2
+            elif role == "BM (Building Manager)":
+                if t_status == "5. Approval Akhir (BM & P3SRS)":
+                    target_tab = 1
 
+            if st.sidebar.button(f"👉 {item_task.get('nomor_opb', 'OPB')}", key=f"sidebar_quick_btn_{item_task.get('id', 0)}", use_container_width=True):
+                st.session_state["target_focus_id"] = item_task.get("id")
+                st.session_state["active_tab_index"] = target_tab
+                st.rerun()
+
+    st.sidebar.markdown("---")
     if st.sidebar.button("🚪 Keluar / Logout", use_container_width=True):
         st.session_state["logged_in"] = False
         st.session_state["user_info"] = None
@@ -974,9 +989,12 @@ else:
     # 2. ROLE PURCHASING
     elif role == "Purchasing":
         st.header("🛒 Panel Kerja Purchasing")
-        tab1, tab2, tab3 = st.tabs(["1. Input Penawaran Harga", "2. Buat & Unggah IOM", "3. Serah Terima Barang ke Engineering"])
+        
+        # Menggunakan session_state index active_tab_index agar tab berpindah otomatis sesuai tombol sidebar
+        tab_titles = ["1. Input Penawaran Harga", "2. Buat & Unggah IOM", "3. Serah Terima Barang ke Engineering"]
+        tabs = st.tabs(tab_titles)
 
-        with tab1:
+        with tabs[0]:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.subheader("OPB Masuk (Perlu Penawaran & Harga Vendor)")
             
@@ -1022,7 +1040,7 @@ else:
                             st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
 
-        with tab2:
+        with tabs[1]:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.subheader("OPB Disetujui BM -> Buat & Upload IOM")
             items = [x for x in st.session_state["db_opb"] if str(x.get("status")).strip() in ["3. Pembuatan IOM (Purchasing)", "Revisi Finance", "Revisi BM/P3SRS (IOM)"]]
@@ -1051,7 +1069,7 @@ else:
                             st.warning("Silakan unggah file IOM terlebih dahulu.")
             st.markdown("</div>", unsafe_allow_html=True)
 
-        with tab3:
+        with tabs[2]:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.subheader("🤝 Serah Terima Barang & Upload BAST ke Engineering")
             items = [x for x in st.session_state["db_opb"] if str(x.get("status")).strip() in ["6. Pembelian Barang (Purchasing)", "6. Serah Terima Barang (Purchasing -> Engineering)"]]
