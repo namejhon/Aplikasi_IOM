@@ -294,7 +294,7 @@ USERS = {
     "p3srs": {"password": "p3srs123", "name": "Pengurus P3SRS", "role": "P3SRS"},
 }
 
-# --- 5. LOG & TANDA TANGAN DIGITAL OTOMATIS ---
+# --- 5. LOG & TANDA TANGAN DIGITAL OTOMATIS (TANPA CANVAS) ---
 def generate_digital_signature(user_role, user_name, doc_id):
     wib = pytz.timezone("Asia/Jakarta")
     waktu = datetime.now(wib).strftime("%Y-%m-%d %H:%M:%S")
@@ -772,9 +772,11 @@ else:
                 for item in st.session_state["db_opb"]
             }
             
+            # --- DIPERBAIKI: Menggunakan st.radio atau st.selectbox yang ramah klik/sentuh langsung ---
             selected_opb_label = st.selectbox(
-                "🔍 Pilih Dokumen OPB untuk Dilihat Detailnya:",
-                options=list(opb_options.keys())
+                "🔍 Pilih Dokumen OPB:",
+                options=list(opb_options.keys()),
+                key="select_opb_dashboard_dropdown"
             )
             
             if selected_opb_label:
