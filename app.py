@@ -186,7 +186,7 @@ def convert_df_to_excel(df):
 
 
 # --- FUNGSI GENERATE EMAIL AUTO POP-UP OUTLOOK ---
-def generate_outlook_mailto_link(item, target_email="purchasing@p3srs.com"):
+def generate_outlook_mailto_link(item, target_email="adhi_it@apt-hamptons.com"):
     """Membuat link URI mailto dengan tujuan email, subjek, dan isi yang otomatis terisi."""
     nomor_opb = item.get('nomor_opb', 'OPB')
     divisi = item.get('divisi', 'IT')
