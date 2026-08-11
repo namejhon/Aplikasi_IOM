@@ -1,4 +1,4 @@
-import base64
+[cite: 2]import base64
 import hashlib
 import io
 import json
@@ -51,7 +51,7 @@ INITIAL_BUDGETS = {div: 1_000_000_000 for div in DIVISI_LIST}
 
 # --- 2. FUNGSI PERSISTENSI DATA (SUPABASE STORAGE & DB) ---
 def upload_file_to_supabase(file_bytes, file_name, folder="opb"):
-    """Mengunggah file ke Supabase Storage dan mengembalikan URL Publiknya."""
+    """Mengunggah file ke Supabase Storage dan mengembalikan URL Publiknya[cite: 2]."""
     if not file_bytes:
         return None
     try:
@@ -74,7 +74,7 @@ def upload_file_to_supabase(file_bytes, file_name, folder="opb"):
 
 
 def load_database():
-    """Membaca seluruh data OPB dari tabel Supabase dengan Sanitasi Data."""
+    """Membaca seluruh data OPB dari tabel Supabase dengan Sanitasi Data[cite: 2]."""
     try:
         response = (
             supabase.table("opb_data")
@@ -112,7 +112,7 @@ def load_database():
 
 
 def save_database(item_data, is_new=False):
-    """Menyimpan item ke Supabase dengan Debugging Error Terperinci."""
+    """Menyimpan item ke Supabase dengan Debugging Error Terperinci[cite: 2]."""
     try:
         db_payload = {
             "nama_barang": str(item_data.get("nama_barang", "")),
@@ -187,6 +187,7 @@ def convert_df_to_excel(df):
 
 # --- FUNGSI GENERATE EMAIL AUTO POP-UP OUTLOOK ---
 def generate_outlook_mailto_link(item, target_email="purchasing@p3srs.com"):
+    """Membuat link URI mailto dengan tujuan email, subjek, dan isi yang otomatis terisi."""
     nomor_opb = item.get('nomor_opb', 'OPB')
     divisi = item.get('divisi', 'IT')
     nama_barang = item.get('nama_barang', '-')
@@ -274,7 +275,7 @@ st.markdown(
         border: 1px dashed #10b981;
         color: #047857; 
         font-size: 10.5px; 
-        padding: 4px 10px; 
+        padding: 3px 8px; 
         border-radius: 6px; 
         margin-top: 6px; 
         font-family: monospace; 
@@ -294,7 +295,7 @@ USERS = {
     "p3srs": {"password": "p3srs123", "name": "Pengurus P3SRS", "role": "P3SRS"},
 }
 
-# --- 5. LOG & TANDA TANGAN DIGITAL OTOMATIS (TANPA CANVAS) ---
+# --- 5. LOG & TANDA TANGAN DIGITAL ---
 def generate_digital_signature(user_role, user_name, doc_id):
     wib = pytz.timezone("Asia/Jakarta")
     waktu = datetime.now(wib).strftime("%Y-%m-%d %H:%M:%S")
@@ -438,7 +439,7 @@ def render_enhanced_timeline(timeline_data):
             sig = timeline_data[step["step"]-1].get("signature")
             sig_badge_html = f"""
             <br><span class="digital-signature-badge">
-                🔏 Tanda Tangan Digital Sah - <b>{sig.get('signed_by', '-')}</b> ({sig.get('role', '-')}) | {sig.get('hash', '-')}
+                🔏 Signed by <b>{sig.get('signed_by', '-')}</b> ({sig.get('role', '-')}) | {sig.get('hash', '-')}
             </span>
             """
 
@@ -489,6 +490,50 @@ def render_download_buttons(item, key_prefix="dl"):
         else:
             st.caption("ℹ️ BAST Belum Ada")
 
+def render_signature_pad(key_id):
+    canvas_html = f"""
+    <div style="border:1px dashed #6366f1; padding:8px; border-radius:12px; background:#f8fafc; text-align:center; max-width:100%;">
+        <label style="font-size:12px; font-weight:bold; color:#3730a3; display:block; margin-bottom:6px;">
+            ✍️ Goreskan Tanda Tangan Digital Anda (Touchscreen Ready):
+        </label>
+        <canvas id="sigCanvas_{key_id}" style="border:1px solid #cbd5e1; border-radius:8px; background:#ffffff; cursor:crosshair; touch-action:none; width:100%; height:120px;"></canvas>
+        <br>
+        <button onclick="clearCanvas_{key_id}()" style="margin-top:6px; background:#f1f5f9; border:1px solid #cbd5e1; padding:4px 12px; border-radius:6px; font-size:11px; cursor:pointer;">
+            🗑️ Bersihkan Canvas
+        </button>
+    </div>
+    <script>
+        var canvas_{key_id} = document.getElementById('sigCanvas_{key_id}');
+        var ctx_{key_id} = canvas_{key_id}.getContext('2d');
+        canvas_{key_id}.width = canvas_{key_id}.offsetWidth;
+        canvas_{key_id}.height = canvas_{key_id}.offsetHeight;
+        var drawing_{key_id} = false;
+
+        function getPos(e) {{
+            var rect = canvas_{key_id}.getBoundingClientRect();
+            var clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            var clientY = e.clientY || (e.touches && e.touches[0].clientY);
+            return {{ x: clientX - rect.left, y: clientY - rect.top }};
+        }}
+
+        function startDraw(e) {{ drawing_{key_id} = true; ctx_{key_id}.beginPath(); var pos = getPos(e); ctx_{key_id}.moveTo(pos.x, pos.y); }}
+        function moveDraw(e) {{ if (!drawing_{key_id}) return; var pos = getPos(e); ctx_{key_id}.lineTo(pos.x, pos.y); ctx_{key_id}.strokeStyle = '#1e1b4b'; ctx_{key_id}.lineWidth = 2.5; ctx_{key_id}.stroke(); }}
+        function stopDraw() {{ drawing_{key_id} = false; }}
+
+        canvas_{key_id}.addEventListener('mousedown', startDraw);
+        canvas_{key_id}.addEventListener('mousemove', moveDraw);
+        canvas_{key_id}.addEventListener('mouseup', stopDraw);
+        canvas_{key_id}.addEventListener('touchstart', function(e){{ startDraw(e); e.preventDefault(); }}, false);
+        canvas_{key_id}.addEventListener('touchmove', function(e){{ moveDraw(e); e.preventDefault(); }}, false);
+        canvas_{key_id}.addEventListener('touchend', stopDraw, false);
+
+        function clearCanvas_{key_id}() {{
+            ctx_{key_id}.clearRect(0, 0, canvas_{key_id}.width, canvas_{key_id}.height);
+        }}
+    </script>
+    """
+    components.html(canvas_html, height=185)
+
 def cek_notifikasi_user(role):
     db = st.session_state["db_opb"]
     pending_items = []
@@ -526,8 +571,6 @@ if "notif_shown" not in st.session_state:
     st.session_state["notif_shown"] = False
 if "target_focus_id" not in st.session_state:
     st.session_state["target_focus_id"] = None
-if "active_tab_index" not in st.session_state:
-    st.session_state["active_tab_index"] = 0
 
 
 # ==================== HALAMAN LOGIN ====================
@@ -593,27 +636,9 @@ else:
         unsafe_allow_html=True,
     )
 
-    # --- SIDEBAR SHORTCUT DAFTAR TUGAS ---
     if pending_tasks:
-        st.sidebar.markdown("##### ⚡ Pintasan Tugas Cepat")
-        for item_task in pending_tasks:
-            t_status = item_task.get("status", "")
-            target_tab = 0
-            if role == "Purchasing":
-                if t_status in ["3. Pembuatan IOM (Purchasing)", "Revisi Finance", "Revisi BM/P3SRS (IOM)"]:
-                    target_tab = 1
-                elif t_status in ["6. Serah Terima Barang (Purchasing -> Engineering)", "6. Pembelian Barang (Purchasing)"]:
-                    target_tab = 2
-            elif role == "BM (Building Manager)":
-                if t_status == "5. Approval Akhir (BM & P3SRS)":
-                    target_tab = 1
+        st.sidebar.warning(f"🔔 **{len(pending_tasks)} Tugas Menunggu**")
 
-            if st.sidebar.button(f"👉 {item_task.get('nomor_opb', 'OPB')}", key=f"sidebar_quick_btn_{item_task.get('id', 0)}", use_container_width=True):
-                st.session_state["target_focus_id"] = item_task.get("id")
-                st.session_state["active_tab_index"] = target_tab
-                st.rerun()
-
-    st.sidebar.markdown("---")
     if st.sidebar.button("🚪 Keluar / Logout", use_container_width=True):
         st.session_state["logged_in"] = False
         st.session_state["user_info"] = None
@@ -638,7 +663,7 @@ else:
         st.markdown(
             f"""
             <div class="notif-box">
-                <div style="display: flex; align-items: center; gap: 10px;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
                     <span style="font-size:20px;">🔔</span>
                     <span style="font-size: 15px; font-weight: 700;">Notifikasi Tugas Masuk ({len(pending_tasks)} Berkas)</span>
                 </div>
@@ -646,6 +671,14 @@ else:
         """,
             unsafe_allow_html=True,
         )
+
+        btn_cols = st.columns(min(len(pending_tasks), 4))
+        for i, item_task in enumerate(pending_tasks):
+            col_idx = i % 4
+            with btn_cols[col_idx]:
+                if st.button(f"👉 {item_task.get('nomor_opb', 'OPB')}", key=f"quick_btn_{item_task.get('id', i)}", type="primary", use_container_width=True):
+                    st.session_state["target_focus_id"] = item_task.get("id")
+                    components.html('<script>window.parent.document.getElementById("anchor-kelola-opb").scrollIntoView({behavior: "smooth"});</script>', height=0)
         st.markdown("<br>", unsafe_allow_html=True)
 
     # ================= EXECUTIVE DASHBOARD & BUDGET PER DIVISI =================
@@ -767,16 +800,15 @@ else:
             st.markdown("##### 📌 Progress Live Status & Timeline Berkas")
             st.markdown("<br>", unsafe_allow_html=True)
             
+            # --- MENGGUNAKAN 1 DROPDOWN UTAMA UNTUK MEMILIH OPB ---
             opb_options = {
                 f"[{item.get('nomor_opb', '-')}] — Divisi: {item.get('divisi','IT')} | Status: {item.get('status', '1. Penawaran Purchasing')}": item 
                 for item in st.session_state["db_opb"]
             }
             
-            # --- DIPERBAIKI: Menggunakan st.radio atau st.selectbox yang ramah klik/sentuh langsung ---
             selected_opb_label = st.selectbox(
-                "🔍 Pilih Dokumen OPB:",
-                options=list(opb_options.keys()),
-                key="select_opb_dashboard_dropdown"
+                "🔍 Pilih Dokumen OPB untuk Dilihat Detailnya:",
+                options=list(opb_options.keys())
             )
             
             if selected_opb_label:
@@ -806,6 +838,7 @@ else:
 
                 render_download_buttons(selected_item, key_prefix="single_select_dl")
                 
+                # --- TOMBOL KIRIM EMAIL OTOMATIS OUTLOOK ---
                 mailto_link = generate_outlook_mailto_link(selected_item)
                 st.markdown(f'<a href="{mailto_link}" target="_blank" style="display:inline-block; background:#0284c7; color:white; padding:6px 12px; border-radius:6px; text-decoration:none; font-size:12px; font-weight:bold; margin-top:8px;">📧 Kirim Auto Email (Outlook)</a>', unsafe_allow_html=True)
 
@@ -932,11 +965,12 @@ else:
                 with st.expander(f"📦 {item.get('nomor_opb', '-')} - {item.get('nama_barang', '-')}", expanded=is_expanded):
                     st.write(f"**Divisi:** {item.get('divisi','IT')} | **Vendor:** {item.get('vendor', '-')}")
                     render_download_buttons(item, key_prefix="eng_tab2")
+                    render_signature_pad(f"eng_rcv_{item.get('id', 0)}")
 
-                    if st.button(f"✅ Konfirmasi & Tanda Tangan BAST", type="primary", use_container_width=True, key=f"btn_eng_rcv_{item.get('id', 0)}"):
+                    if st.button(f"✅ Konfirmasi & Tanda Tangan BAST", type="primary", use_container_width=True):
                         sig_rcv = generate_digital_signature("Engineering (Penerima)", user_info["name"], item.get("nomor_opb", "OPB"))
                         item["status"] = "8. Selesai"
-                        catat_log(item, f"Barang diterima oleh {user_info['name']}. BAST Disetujui & Ditandatangani secara digital.", digital_sig=sig_rcv)
+                        catat_log(item, f"Barang diterima oleh {user_info['name']}. BAST Ditandatangani.", digital_sig=sig_rcv)
                         save_database(item, is_new=False)
                         st.session_state["target_focus_id"] = None
                         st.rerun()
@@ -945,11 +979,9 @@ else:
     # 2. ROLE PURCHASING
     elif role == "Purchasing":
         st.header("🛒 Panel Kerja Purchasing")
-        
-        tab_titles = ["1. Input Penawaran Harga", "2. Buat & Unggah IOM", "3. Serah Terima Barang ke Engineering"]
-        tabs = st.tabs(tab_titles)
+        tab1, tab2, tab3 = st.tabs(["1. Input Penawaran Harga", "2. Buat & Unggah IOM", "3. Serah Terima Barang ke Engineering"])
 
-        with tabs[0]:
+        with tab1:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.subheader("OPB Masuk (Perlu Penawaran & Harga Vendor)")
             
@@ -995,7 +1027,7 @@ else:
                             st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
 
-        with tabs[1]:
+        with tab2:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.subheader("OPB Disetujui BM -> Buat & Upload IOM")
             items = [x for x in st.session_state["db_opb"] if str(x.get("status")).strip() in ["3. Pembuatan IOM (Purchasing)", "Revisi Finance", "Revisi BM/P3SRS (IOM)"]]
@@ -1024,7 +1056,7 @@ else:
                             st.warning("Silakan unggah file IOM terlebih dahulu.")
             st.markdown("</div>", unsafe_allow_html=True)
 
-        with tabs[2]:
+        with tab3:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.subheader("🤝 Serah Terima Barang & Upload BAST ke Engineering")
             items = [x for x in st.session_state["db_opb"] if str(x.get("status")).strip() in ["6. Pembelian Barang (Purchasing)", "6. Serah Terima Barang (Purchasing -> Engineering)"]]
@@ -1039,6 +1071,7 @@ else:
 
                     st.divider()
                     file_bast = st.file_uploader("Unggah BAST", type=["pdf", "jpg", "png"], key=f"bast_file_{item_id}")
+                    render_signature_pad(f"pur_bast_{item_id}")
 
                     if st.button("🚚 Serahkan Barang & BAST ke Engineering", key=f"btn_p3_{item_id}", type="primary", use_container_width=True):
                         if file_bast:
@@ -1070,6 +1103,7 @@ else:
                     render_download_buttons(item, key_prefix=f"bm_tab1_{item_id}")
 
                     st.divider()
+                    render_signature_pad(f"bm1_sig_{item_id}")
                     catatan = st.text_input("Catatan / Alasan jika Minta Revisi", key=f"c_bm1_{item_id}")
 
                     col1, col2 = st.columns(2)
@@ -1077,7 +1111,7 @@ else:
                         if st.button("✅ Setujui & Tanda Tangan OPB", key=f"app_bm1_{item_id}", type="primary", use_container_width=True):
                             sig_bm = generate_digital_signature("Building Manager", user_info["name"], item.get("nomor_opb", "OPB"))
                             item["status"] = "3. Pembuatan IOM (Purchasing)"
-                            catat_log(item, "BM menyetujui OPB & Tanda Tangan Digital Diterbitkan.", digital_sig=sig_bm)
+                            catat_log(item, "BM menyetujui OPB. Diteruskan ke Purchasing.", digital_sig=sig_bm)
                             save_database(item, is_new=False)
                             st.session_state["target_focus_id"] = None
                             st.rerun()
@@ -1101,9 +1135,10 @@ else:
                 item_id = item.get("id", 0)
                 with st.expander(f"📑 Approval IOM: {item.get('nomor_opb', '-')}", expanded=is_expanded):
                     render_download_buttons(item, key_prefix=f"bm_tab2_{item_id}")
+                    render_signature_pad(f"bm2_sig_{item_id}")
                     if st.button("✅ Approve & Tanda Tangan IOM Final (BM)", key=f"app_bm2_{item_id}", type="primary", use_container_width=True):
                         sig_bm_iom = generate_digital_signature("Building Manager (IOM Final)", user_info["name"], item.get("nomor_opb", "OPB"))
-                        catat_log(item, "BM menyetujui IOM Final & Tanda Tangan Digital Diterbitkan.", digital_sig=sig_bm_iom)
+                        catat_log(item, "BM menyetujui IOM Final.", digital_sig=sig_bm_iom)
                         save_database(item, is_new=False)
                         st.session_state["target_focus_id"] = None
                         st.rerun()
@@ -1125,14 +1160,15 @@ else:
                 st.write(f"**Divisi Pemohon:** {div_item} | **Nilai:** Rp {item.get('harga_estimasi', 0):,}")
                 render_download_buttons(item, key_prefix=f"fin_{item_id}")
 
+                render_signature_pad(f"fin_sig_{item_id}")
                 catatan = st.text_input("Catatan", key=f"c_fin_{item_id}")
 
                 col1, col2 = st.columns(2)
                 with col1:
-                    if st.button("✅ Verifikasi Budget & Tanda Tangan", key=f"app_fin_{item_id}", type="primary", use_container_width=True):
+                    if st.button("✅ Verifikasi Budget", key=f"app_fin_{item_id}", type="primary", use_container_width=True):
                         sig_fin = generate_digital_signature("Finance Officer", user_info["name"], item.get("nomor_opb", "OPB"))
                         item["status"] = "5. Approval Akhir (BM & P3SRS)"
-                        catat_log(item, f"Finance memverifikasi budget Divisi {div_item} & Tanda Tangan Digital Diterbitkan.", digital_sig=sig_fin)
+                        catat_log(item, f"Finance memverifikasi budget Divisi {div_item}.", digital_sig=sig_fin)
                         save_database(item, is_new=False)
                         st.session_state["target_focus_id"] = None
                         st.rerun()
@@ -1161,14 +1197,15 @@ else:
                 harga_nilai = item.get("harga_estimasi", 0)
                 render_download_buttons(item, key_prefix=f"p3srs_{item_id}")
 
+                render_signature_pad(f"p3srs_sig_{item_id}")
                 catatan = st.text_input("Catatan", key=f"c_p3srs_{item_id}")
 
                 col1, col2 = st.columns(2)
                 with col1:
-                    if st.button("✅ ACC, Tanda Tangan & Potong Budget", key=f"app_p3srs_{item_id}", type="primary", use_container_width=True):
+                    if st.button("✅ ACC & Potong Budget Divisi", key=f"app_p3srs_{item_id}", type="primary", use_container_width=True):
                         sig_p3srs = generate_digital_signature("Pengurus P3SRS", user_info["name"], item.get("nomor_opb", "OPB"))
                         item["status"] = "6. Serah Terima Barang (Purchasing -> Engineering)"
-                        catat_log(item, f"P3SRS menyetujui IOM Final & Tanda Tangan Diterbitkan. Budget Divisi {div_item} terpotong Rp {harga_nilai:,}.", digital_sig=sig_p3srs)
+                        catat_log(item, f"P3SRS menyetujui IOM Final. Budget Divisi {div_item} terpotong Rp {harga_nilai:,}.", digital_sig=sig_p3srs)
                         save_database(item, is_new=False)
                         st.session_state["target_focus_id"] = None
                         st.rerun()
@@ -1181,3 +1218,4 @@ else:
                         st.session_state["target_focus_id"] = None
                         st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
+```[cite: 2]
