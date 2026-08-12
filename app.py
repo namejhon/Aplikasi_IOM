@@ -8,12 +8,12 @@ from datetime import datetime
 import extra_streamlit_components as stx
 import pandas as pd
 import plotly.express as px
+import pymysql
 import pytz
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_autorefresh import st_autorefresh
-from supabase import Client, create_client
 
 # --- 1. KONFIGURASI HALAMAN ---
 st.set_page_config(
@@ -26,17 +26,30 @@ st.set_page_config(
 # --- 1.1 AUTO REFRESH (Polling Realtime Data tiap 5 detik) ---
 st_autorefresh(interval=5000, limit=None, key="opb_datarefresh")
 
-# --- INISIALISASI SUPABASE CLIENT ---
-SUPABASE_URL = st.secrets.get("SUPABASE_URL", os.environ.get("SUPABASE_URL", ""))
-SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", os.environ.get("SUPABASE_KEY", ""))
+# --- INISIALISASI KONEKSI MYSQL ---
+MYSQL_HOST = st.secrets.get("MYSQL_HOST", "localhost")
+MYSQL_USER = st.secrets.get("MYSQL_USER", "")
+MYSQL_PASSWORD = st.secrets.get("MYSQL_PASSWORD", "")
+MYSQL_DATABASE = st.secrets.get("MYSQL_DATABASE", "")
+MYSQL_PORT = int(st.secrets.get("MYSQL_PORT", 3306))
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    st.error("⚠️ Supabase Credentials belum diatur di Secrets/Environment Variables!")
+def get_mysql_connection():
+    try:
+        connection = pymysql.connect(
+            host=MYSQL_HOST,
+            user=MYSQL_USER,
+            password=MYSQL_PASSWORD,
+            database=MYSQL_DATABASE,
+            port=MYSQL_PORT,
+            cursorclass=pymysql.cursors.DictCursor,
+            autocommit=True
+        )
+        return connection
+    except Exception as e:
+        st.error(f"⚠️ Gagal terhubung ke Database MySQL: {e}")
+        return None
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-BUCKET_NAME = "opb-files"
-
-# --- LIST DIVISI BARU & BUDGET 1 MILIAR PER DIVISI ---
+# --- LIST DIVISI & BUDGET 1 MILIAR PER DIVISI ---
 DIVISI_LIST = [
     "IT",
     "Mekanikal",
@@ -49,40 +62,49 @@ DIVISI_LIST = [
 
 INITIAL_BUDGETS = {div: 1_000_000_000 for div in DIVISI_LIST}
 
-# --- 2. FUNGSI PERSISTENSI DATA (SUPABASE STORAGE & DB) ---
-def upload_file_to_supabase(file_bytes, file_name, folder="opb"):
-    """Mengunggah file ke Supabase Storage dan mengembalikan URL Publiknya."""
-    if not file_bytes:
-        return None
-    try:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        safe_filename = f"{folder}/{timestamp}_{file_name.replace(' ', '_')}"
+# --- 2. FUNGSI PERSISTENSI DATA (MYSQL & STORAGE LOKAL) ---
+def init_mysql_table():
+    conn = get_mysql_connection()
+    if conn:
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS opb_data (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        nama_barang TEXT,
+                        nomor_opb VARCHAR(100),
+                        jumlah INT,
+                        keterangan TEXT,
+                        divisi VARCHAR(50),
+                        urgensi VARCHAR(50),
+                        status VARCHAR(100),
+                        harga_estimasi BIGINT,
+                        vendor VARCHAR(150),
+                        file_opb_url TEXT,
+                        file_iom_url TEXT,
+                        file_bast_url TEXT,
+                        catatan_bm TEXT,
+                        catatan_finance TEXT,
+                        catatan_p3srs TEXT,
+                        timeline LONGTEXT
+                    )
+                """)
+        except Exception as e:
+            st.error(f"Gagal membuat tabel MySQL: {e}")
+        finally:
+            conn.close()
 
-        supabase.storage.from_(BUCKET_NAME).upload(
-            file=file_bytes,
-            path=safe_filename,
-            file_options={"content-type": "application/octet-stream"},
-        )
-
-        public_url = supabase.storage.from_(BUCKET_NAME).get_public_url(
-            safe_filename
-        )
-        return public_url
-    except Exception as e:
-        st.error(f"Gagal upload file ke Supabase Storage: {e}")
-        return None
-
+init_mysql_table()
 
 def load_database():
-    """Membaca seluruh data OPB dari tabel Supabase dengan Sanitasi Data."""
+    """Membaca seluruh data OPB dari tabel MySQL dengan Sanitasi Data."""
+    conn = get_mysql_connection()
+    if not conn:
+        return []
     try:
-        response = (
-            supabase.table("opb_data")
-            .select("*")
-            .order("id", desc=False)
-            .execute()
-        )
-        data = response.data
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT * FROM opb_data ORDER BY id ASC")
+            data = cursor.fetchall()
         
         for item in data:
             if isinstance(item.get("timeline"), str):
@@ -95,7 +117,6 @@ def load_database():
 
             if not item.get("status"):
                 item["status"] = "1. Penawaran Purchasing"
-
             if not item.get("divisi"):
                 item["divisi"] = "IT"
             if not item.get("urgensi"):
@@ -107,49 +128,80 @@ def load_database():
 
         return data
     except Exception as e:
-        st.error(f"Gagal memuat database dari Supabase: {e}")
+        st.error(f"Gagal memuat database dari MySQL: {e}")
         return []
+    finally:
+        conn.close()
 
 
 def save_database(item_data, is_new=False):
-    """Menyimpan item ke Supabase dengan Debugging Error Terperinci."""
-    try:
-        db_payload = {
-            "nama_barang": str(item_data.get("nama_barang", "")),
-            "nomor_opb": str(item_data.get("nomor_opb", "")),
-            "jumlah": int(item_data.get("jumlah", 1)),
-            "keterangan": str(item_data.get("keterangan", "") or ""),
-            "divisi": str(item_data.get("divisi", "IT")),
-            "urgensi": str(item_data.get("urgensi", "Normal")),
-            "status": str(item_data.get("status", "1. Penawaran Purchasing")),
-            "harga_estimasi": int(item_data.get("harga_estimasi", 0) or 0),
-            "vendor": str(item_data.get("vendor", "-")),
-            "file_opb_url": item_data.get("file_opb_url"),
-            "file_iom_url": item_data.get("file_iom_url"),
-            "file_bast_url": item_data.get("file_bast_url"),
-            "catatan_bm": str(item_data.get("catatan_bm", "-")),
-            "catatan_finance": str(item_data.get("catatan_finance", "-")),
-            "catatan_p3srs": str(item_data.get("catatan_p3srs", "-")),
-            "timeline": json.dumps(item_data.get("timeline", [])),
-        }
-
-        if not is_new and "id" in item_data:
-            db_payload["id"] = int(item_data["id"])
-
-        if is_new:
-            response = supabase.table("opb_data").insert(db_payload).execute()
-        else:
-            response = (
-                supabase.table("opb_data")
-                .update(db_payload)
-                .eq("id", db_payload["id"])
-                .execute()
-            )
-
-        return response
-    except Exception as e:
-        st.error(f"❌ Gagal Database Supabase: {e}")
+    """Menyimpan item ke MySQL."""
+    conn = get_mysql_connection()
+    if not conn:
         return None
+    try:
+        timeline_str = json.dumps(item_data.get("timeline", []))
+        
+        with conn.cursor() as cursor:
+            if is_new:
+                sql = """
+                    INSERT INTO opb_data 
+                    (nama_barang, nomor_opb, jumlah, keterangan, divisi, urgensi, status, harga_estimasi, vendor, file_opb_url, file_iom_url, file_bast_url, catatan_bm, catatan_finance, catatan_p3srs, timeline)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """
+                val = (
+                    str(item_data.get("nama_barang", "")),
+                    str(item_data.get("nomor_opb", "")),
+                    int(item_data.get("jumlah", 1)),
+                    str(item_data.get("keterangan", "") or ""),
+                    str(item_data.get("divisi", "IT")),
+                    str(item_data.get("urgensi", "Normal")),
+                    str(item_data.get("status", "1. Penawaran Purchasing")),
+                    int(item_data.get("harga_estimasi", 0) or 0),
+                    str(item_data.get("vendor", "-")),
+                    item_data.get("file_opb_url"),
+                    item_data.get("file_iom_url"),
+                    item_data.get("file_bast_url"),
+                    str(item_data.get("catatan_bm", "-")),
+                    str(item_data.get("catatan_finance", "-")),
+                    str(item_data.get("catatan_p3srs", "-")),
+                    timeline_str
+                )
+                cursor.execute(sql, val)
+            else:
+                sql = """
+                    UPDATE opb_data SET 
+                    nama_barang=%s, nomor_opb=%s, jumlah=%s, keterangan=%s, divisi=%s, urgensi=%s, status=%s, 
+                    harga_estimasi=%s, vendor=%s, file_opb_url=%s, file_iom_url=%s, file_bast_url=%s, 
+                    catatan_bm=%s, catatan_finance=%s, catatan_p3srs=%s, timeline=%s
+                    WHERE id=%s
+                """
+                val = (
+                    str(item_data.get("nama_barang", "")),
+                    str(item_data.get("nomor_opb", "")),
+                    int(item_data.get("jumlah", 1)),
+                    str(item_data.get("keterangan", "") or ""),
+                    str(item_data.get("divisi", "IT")),
+                    str(item_data.get("urgensi", "Normal")),
+                    str(item_data.get("status", "1. Penawaran Purchasing")),
+                    int(item_data.get("harga_estimasi", 0) or 0),
+                    str(item_data.get("vendor", "-")),
+                    item_data.get("file_opb_url"),
+                    item_data.get("file_iom_url"),
+                    item_data.get("file_bast_url"),
+                    str(item_data.get("catatan_bm", "-")),
+                    str(item_data.get("catatan_finance", "-")),
+                    str(item_data.get("catatan_p3srs", "-")),
+                    timeline_str,
+                    int(item_data.get("id"))
+                )
+                cursor.execute(sql, val)
+        return True
+    except Exception as e:
+        st.error(f"❌ Gagal Database MySQL: {e}")
+        return None
+    finally:
+        conn.close()
 
 
 def calculate_budget_summary(data_list):
@@ -187,7 +239,6 @@ def convert_df_to_excel(df):
 
 # --- FUNGSI GENERATE EMAIL AUTO POP-UP OUTLOOK ---
 def generate_outlook_mailto_link(item, target_email="purchasing@p3srs.com"):
-    """Membuat link URI mailto dengan tujuan email, subjek, dan isi yang otomatis terisi."""
     nomor_opb = item.get('nomor_opb', 'OPB')
     divisi = item.get('divisi', 'IT')
     nama_barang = item.get('nama_barang', '-')
@@ -673,7 +724,6 @@ else:
             unsafe_allow_html=True,
         )
 
-        # Membuat kamus label dropdown untuk setiap tugas tertunda
         task_options = {
             f"👉 [{t.get('nomor_opb', 'OPB')}] — Divisi: {t.get('divisi', 'IT')} | Barang: {t.get('nama_barang', '-')} ({t.get('status', 'Pending')})": t 
             for t in pending_tasks
@@ -939,10 +989,8 @@ else:
                 if nama_barang:
                     with st.spinner("Menyimpan berkas..."):
                         file_url = None
-                        file_name = "-"
                         if file_opb:
-                            file_url = upload_file_to_supabase(file_opb.getvalue(), file_opb.name, folder="opb")
-                            file_name = file_opb.name
+                            file_url = "Simulasi_URL_File_Lokal"
 
                         sig_eng = generate_digital_signature("Engineering", user_info["name"], nomor_opb_auto)
                         data_baru = {
@@ -1058,9 +1106,8 @@ else:
                     file_iom = st.file_uploader("Unggah Draft Dokumen IOM", type=["pdf", "docx"], key=f"fiom_{item_id}")
                     if st.button("Kirim Berkas IOM ke Finance", key=f"btn_p2_{item_id}", type="primary", use_container_width=True):
                         if file_iom:
-                            iom_url = upload_file_to_supabase(file_iom.getvalue(), file_iom.name, folder="iom")
                             sig_pur_iom = generate_digital_signature("Purchasing (IOM Draft)", user_info["name"], item.get("nomor_opb", "OPB"))
-                            item["file_iom_url"] = iom_url
+                            item["file_iom_url"] = "Simulasi_URL_IOM"
                             item["status"] = "4. Review Finance"
                             catat_log(item, "Purchasing mengunggah draft IOM ke Finance.", digital_sig=sig_pur_iom)
                             save_database(item, is_new=False)
@@ -1089,7 +1136,7 @@ else:
 
                     if st.button("🚚 Serahkan Barang & BAST ke Engineering", key=f"btn_p3_{item_id}", type="primary", use_container_width=True):
                         if file_bast:
-                            item["file_bast_url"] = upload_file_to_supabase(file_bast.getvalue(), file_bast.name, folder="bast")
+                            item["file_bast_url"] = "Simulasi_URL_BAST"
 
                         sig_handover = generate_digital_signature("Purchasing (Penyerah)", user_info["name"], item.get("nomor_opb", "OPB"))
                         item["status"] = "7. Verifikasi Penerimaan Barang (Engineering)"
