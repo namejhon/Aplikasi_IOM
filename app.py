@@ -26,12 +26,11 @@ st.set_page_config(
 # --- 1.1 AUTO REFRESH (Polling Realtime Data tiap 5 detik) ---
 st_autorefresh(interval=5000, limit=None, key="opb_datarefresh")
 
-# --- INISIALISASI KONEKSI MYSQL ---
-MYSQL_HOST = st.secrets.get("MYSQL_HOST", "localhost")
-MYSQL_USER = st.secrets.get("MYSQL_USER", "")
-MYSQL_PASSWORD = st.secrets.get("MYSQL_PASSWORD", "")
-MYSQL_DATABASE = st.secrets.get("MYSQL_DATABASE", "")
-MYSQL_PORT = int(st.secrets.get("MYSQL_PORT", 3306))
+MYSQL_HOST = st.secrets["mysql"]["host"]
+MYSQL_USER = st.secrets["mysql"]["user"]
+MYSQL_PASSWORD = st.secrets["mysql"]["password"]
+MYSQL_DATABASE = st.secrets["mysql"]["database"]
+MYSQL_PORT = int(st.secrets["mysql"]["port"])
 
 def get_mysql_connection():
     try:
