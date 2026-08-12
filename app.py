@@ -51,7 +51,7 @@ INITIAL_BUDGETS = {div: 1_000_000_000 for div in DIVISI_LIST}
 
 # --- 2. FUNGSI PERSISTENSI DATA (SUPABASE STORAGE & DB) ---
 def upload_file_to_supabase(file_bytes, file_name, folder="opb"):
-    """Mengunggah file ke Supabase Storage dan mengembalikan URL Publiknya[cite: 2]."""
+    """Mengunggah file ke Supabase Storage dan mengembalikan URL Publiknya."""
     if not file_bytes:
         return None
     try:
@@ -74,7 +74,7 @@ def upload_file_to_supabase(file_bytes, file_name, folder="opb"):
 
 
 def load_database():
-    """Membaca seluruh data OPB dari tabel Supabase dengan Sanitasi Data[cite: 2]."""
+    """Membaca seluruh data OPB dari tabel Supabase dengan Sanitasi Data."""
     try:
         response = (
             supabase.table("opb_data")
@@ -112,7 +112,7 @@ def load_database():
 
 
 def save_database(item_data, is_new=False):
-    """Menyimpan item ke Supabase dengan Debugging Error Terperinci[cite: 2]."""
+    """Menyimpan item ke Supabase dengan Debugging Error Terperinci."""
     try:
         db_payload = {
             "nama_barang": str(item_data.get("nama_barang", "")),
@@ -659,32 +659,42 @@ else:
         unsafe_allow_html=True,
     )
 
+    # --- BAGIAN NOTIFIKASI TUGAS MENGGUNAKAN DROPDOWN SELECT YANG RAPI ---
     if pending_tasks:
         st.markdown(
             f"""
             <div class="notif-box">
-                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 4px;">
                     <span style="font-size:20px;">🔔</span>
-                    <span style="font-size: 15px; font-weight: 700;">Notifikasi Tugas Masuk ({len(pending_tasks)} Berkas)</span>
+                    <span style="font-size: 15px; font-weight: 700;">Notifikasi Tugas Masuk ({len(pending_tasks)} Berkas Menunggu Tindakan)</span>
                 </div>
             </div>
         """,
             unsafe_allow_html=True,
         )
 
-        btn_cols = st.columns(min(len(pending_tasks), 4))
-        for i, item_task in enumerate(pending_tasks):
-            col_idx = i % 4
-            with btn_cols[col_idx]:
-                if st.button(f"👉 {item_task.get('nomor_opb', 'OPB')}", key=f"quick_btn_{item_task.get('id', i)}", type="primary", use_container_width=True):
-                    # --- PERBAIKAN: Set target focus ID dan langsung arahkan (scroll) ke lokasi file/panel terkait ---
-                    st.session_state["target_focus_id"] = item_task.get("id")
-                    components.html(
-                        '<script>'
-                        'window.parent.document.getElementById("anchor-kelola-opb").scrollIntoView({behavior: "smooth"});'
-                        '</script>', 
-                        height=0
-                    )
+        # Membuat kamus label dropdown untuk setiap tugas tertunda
+        task_options = {
+            f"👉 [{t.get('nomor_opb', 'OPB')}] — Divisi: {t.get('divisi', 'IT')} | Barang: {t.get('nama_barang', '-')} ({t.get('status', 'Pending')})": t 
+            for t in pending_tasks
+        }
+
+        col_sel1, col_sel2 = st.columns([3, 1])
+        with col_sel1:
+            selected_task_label = st.selectbox(
+                "Pilih Berkas Tugas untuk Langsung Diproses:",
+                options=list(task_options.keys()),
+                key="dropdown_notif_tugas"
+            )
+        with col_sel2:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("🚀 Buka & Fokus ke Tugas", type="primary", use_container_width=True):
+                chosen_task = task_options[selected_task_label]
+                st.session_state["target_focus_id"] = chosen_task.get("id")
+                components.html('<script>window.parent.document.getElementById("anchor-kelola-opb").scrollIntoView({behavior: "smooth"});</script>', height=0)
+                st.toast(f"Mengarahkan ke berkas {chosen_task.get('nomor_opb')}...", icon="🎯")
+                st.rerun()
+
         st.markdown("<br>", unsafe_allow_html=True)
 
     # ================= EXECUTIVE DASHBOARD & BUDGET PER DIVISI =================
