@@ -236,7 +236,6 @@ def convert_df_to_excel(df):
     return processed_data
 
 
-# --- FUNGSI GENERATE EMAIL AUTO POP-UP OUTLOOK ---
 def generate_outlook_mailto_link(item, target_email="purchasing@p3srs.com"):
     nomor_opb = item.get('nomor_opb', 'OPB')
     divisi = item.get('divisi', 'IT')
@@ -967,6 +966,7 @@ else:
 
             st.text_input("Nomor OPB (Otomatis)", value=nomor_opb_auto, disabled=True)
 
+            # --- FORM PEMBUATAN OPB BARU ---
             with st.form(key="form_opb_engineering", clear_on_submit=True):
                 urgensi = st.radio(
                     "Tingkat Urgensi / Jenis OPB",
@@ -984,9 +984,9 @@ else:
 
                 submit = st.form_submit_button("🚀 Submit & Kirim OPB ke Purchasing", type="primary", use_container_width=True)
 
-            if submit:
-                if nama_barang:
-                    with st.spinner("Menyimpan berkas..."):
+                # --- PENANGANAN SUBMIT HARUS BERADA DI DALAM BLOK ST.FORM ---
+                if submit:
+                    if nama_barang:
                         file_url = None
                         if file_opb:
                             file_url = "Simulasi_URL_File_Lokal"
@@ -1009,10 +1009,10 @@ else:
                         
                         res = save_database(data_baru, is_new=True)
                         if res:
-                            st.toast("🚀 OPB Berhasil diteruskan ke Purchasing!", icon="✅")
+                            st.success("🚀 OPB Berhasil diteruskan ke Purchasing!")
                             st.rerun()
-                else:
-                    st.warning("Mohon isi Detail Barang terlebih dahulu.")
+                    else:
+                        st.warning("Mohon isi Detail Barang terlebih dahulu.")
             st.markdown("</div>", unsafe_allow_html=True)
 
         with tab2:
@@ -1074,18 +1074,18 @@ else:
 
                         submit_pur = st.form_submit_button("Kirim ke BM untuk Review", type="primary", use_container_width=True)
 
-                    if submit_pur:
-                        sig_pur = generate_digital_signature("Purchasing", user_info["name"], item.get("nomor_opb", "OPB"))
-                        item["vendor"] = vendor_input
-                        item["harga_estimasi"] = int(harga_input)
-                        item["status"] = "2. Review BM"
-                        catat_log(item, f"Purchasing menentukan vendor ({vendor_input}) & harga Rp {harga_input:,}.", digital_sig=sig_pur)
-                        
-                        res = save_database(item, is_new=False)
-                        if res is not None:
-                            st.session_state["target_focus_id"] = None
-                            st.toast("📩 Berhasil dikirim ke BM!", icon="✅")
-                            st.rerun()
+                        if submit_pur:
+                            sig_pur = generate_digital_signature("Purchasing", user_info["name"], item.get("nomor_opb", "OPB"))
+                            item["vendor"] = vendor_input
+                            item["harga_estimasi"] = int(harga_input)
+                            item["status"] = "2. Review BM"
+                            catat_log(item, f"Purchasing menentukan vendor ({vendor_input}) & harga Rp {harga_input:,}.", digital_sig=sig_pur)
+                            
+                            res = save_database(item, is_new=False)
+                            if res is not None:
+                                st.session_state["target_focus_id"] = None
+                                st.success("📩 Berhasil dikirim ke BM!")
+                                st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
 
         with tab2:
