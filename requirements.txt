@@ -12,3 +12,4 @@ plotly
 reportlab
 xlsxwriter
 openpyxl
+pymysql
