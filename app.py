@@ -214,7 +214,7 @@ def generate_outlook_mailto_link(item, target_email="purchasing@p3srs.com"):
         f"🔗 Link Dokumen Terkait:\n"
         f"- File OPB: {opb_url if opb_url else 'Belum ada'}\n"
         f"- File IOM: {iom_url if iom_url else 'Belum ada'}\n\n"
-        f"Silakan akses portal aplikasi untuk melakukan verifikasi, persetujuan, dan tanda tangan digital.\n\n"
+        f"Silakan akses portal aplikasi untuk melakukan verifikasi dan persetujuan sistem.\n\n"
         f"Terima kasih.\n"
         f"(Notifikasi Otomatis Sistem Flow OPB & IOM - P3SRS)"
     )
@@ -295,25 +295,13 @@ USERS = {
     "p3srs": {"password": "p3srs123", "name": "Pengurus P3SRS", "role": "P3SRS"},
 }
 
-# --- 5. LOG & TANDA TANGAN DIGITAL ---
-def generate_digital_signature(user_role, user_name, doc_id):
-    wib = pytz.timezone("Asia/Jakarta")
-    waktu = datetime.now(wib).strftime("%Y-%m-%d %H:%M:%S")
-    raw_data = f"{doc_id}-{user_role}-{user_name}-{waktu}"
-    sig_hash = hashlib.sha256(raw_data.encode()).hexdigest()[:12].upper()
-    return {
-        "signed_by": user_name,
-        "role": user_role,
-        "timestamp": waktu,
-        "hash": f"DS-P3SRS-{sig_hash}",
-    }
-
-def catat_log(item, pesan, digital_sig=None):
+# --- 5. LOG & VERIFIKASI SISTEM (Tanpa Tanda Tangan Canvas) ---
+def catat_log(item, pesan, system_sig=None):
     wib = pytz.timezone("Asia/Jakarta")
     waktu_sekarang = datetime.now(wib).strftime("%d/%m/%Y %H:%M:%S")
     log_entry = {"waktu": waktu_sekarang, "pesan": pesan}
-    if digital_sig:
-        log_entry["signature"] = digital_sig
+    if system_sig:
+        log_entry["signature"] = system_sig
     if "timeline" not in item or not isinstance(item["timeline"], list):
         item["timeline"] = []
     item["timeline"].append(log_entry)
@@ -439,7 +427,7 @@ def render_enhanced_timeline(timeline_data):
             sig = timeline_data[step["step"]-1].get("signature")
             sig_badge_html = f"""
             <br><span class="digital-signature-badge">
-                🔏 Signed by <b>{sig.get('signed_by', '-')}</b> ({sig.get('role', '-')}) | {sig.get('hash', '-')}
+                ✔️ Approved by <b>{sig.get('signed_by', '-')}</b> ({sig.get('role', '-')}) | Timestamp: {sig.get('timestamp', '-')}
             </span>
             """
 
@@ -489,50 +477,6 @@ def render_download_buttons(item, key_prefix="dl"):
             st.markdown(f"[📦 Download BAST]({item['file_bast_url']})")
         else:
             st.caption("ℹ️ BAST Belum Ada")
-
-def render_signature_pad(key_id):
-    canvas_html = f"""
-    <div style="border:1px dashed #6366f1; padding:8px; border-radius:12px; background:#f8fafc; text-align:center; max-width:100%;">
-        <label style="font-size:12px; font-weight:bold; color:#3730a3; display:block; margin-bottom:6px;">
-            ✍️ Goreskan Tanda Tangan Digital Anda (Touchscreen Ready):
-        </label>
-        <canvas id="sigCanvas_{key_id}" style="border:1px solid #cbd5e1; border-radius:8px; background:#ffffff; cursor:crosshair; touch-action:none; width:100%; height:120px;"></canvas>
-        <br>
-        <button onclick="clearCanvas_{key_id}()" style="margin-top:6px; background:#f1f5f9; border:1px solid #cbd5e1; padding:4px 12px; border-radius:6px; font-size:11px; cursor:pointer;">
-            🗑️ Bersihkan Canvas
-        </button>
-    </div>
-    <script>
-        var canvas_{key_id} = document.getElementById('sigCanvas_{key_id}');
-        var ctx_{key_id} = canvas_{key_id}.getContext('2d');
-        canvas_{key_id}.width = canvas_{key_id}.offsetWidth;
-        canvas_{key_id}.height = canvas_{key_id}.offsetHeight;
-        var drawing_{key_id} = false;
-
-        function getPos(e) {{
-            var rect = canvas_{key_id}.getBoundingClientRect();
-            var clientX = e.clientX || (e.touches && e.touches[0].clientX);
-            var clientY = e.clientY || (e.touches && e.touches[0].clientY);
-            return {{ x: clientX - rect.left, y: clientY - rect.top }};
-        }}
-
-        function startDraw(e) {{ drawing_{key_id} = true; ctx_{key_id}.beginPath(); var pos = getPos(e); ctx_{key_id}.moveTo(pos.x, pos.y); }}
-        function moveDraw(e) {{ if (!drawing_{key_id}) return; var pos = getPos(e); ctx_{key_id}.lineTo(pos.x, pos.y); ctx_{key_id}.strokeStyle = '#1e1b4b'; ctx_{key_id}.lineWidth = 2.5; ctx_{key_id}.stroke(); }}
-        function stopDraw() {{ drawing_{key_id} = false; }}
-
-        canvas_{key_id}.addEventListener('mousedown', startDraw);
-        canvas_{key_id}.addEventListener('mousemove', moveDraw);
-        canvas_{key_id}.addEventListener('mouseup', stopDraw);
-        canvas_{key_id}.addEventListener('touchstart', function(e){{ startDraw(e); e.preventDefault(); }}, false);
-        canvas_{key_id}.addEventListener('touchmove', function(e){{ moveDraw(e); e.preventDefault(); }}, false);
-        canvas_{key_id}.addEventListener('touchend', stopDraw, false);
-
-        function clearCanvas_{key_id}() {{
-            ctx_{key_id}.clearRect(0, 0, canvas_{key_id}.width, canvas_{key_id}.height);
-        }}
-    </script>
-    """
-    components.html(canvas_html, height=185)
 
 def cek_notifikasi_user(role):
     db = st.session_state["db_opb"]
@@ -653,7 +597,7 @@ else:
         f"""
         <div class="main-header">
             <h1>📋 Sistem Pengajuan OPB & IOM - P3SRS</h1>
-            <p>Platform Integrasi OPB, IOM & Digital Signature Handover | Hak Akses: <b>{role}</b></p>
+            <p>Platform Integrasi OPB, IOM & Digital Approval Handover | Hak Akses: <b>{role}</b></p>
         </div>
     """,
         unsafe_allow_html=True,
@@ -673,7 +617,6 @@ else:
             unsafe_allow_html=True,
         )
 
-        # Membuat kamus label dropdown untuk setiap tugas tertunda
         task_options = {
             f"👉 [{t.get('nomor_opb', 'OPB')}] — Divisi: {t.get('divisi', 'IT')} | Barang: {t.get('nama_barang', '-')} ({t.get('status', 'Pending')})": t 
             for t in pending_tasks
@@ -902,7 +845,7 @@ else:
     # 1. ROLE ENGINEERING
     if role == "Engineering":
         st.header("🔧 Panel Kerja Engineering")
-        tab1, tab2 = st.tabs(["📝 Buat Form OPB Baru", "📦 Verifikasi & Tanda Tangan Penerimaan Barang (BAST)"])
+        tab1, tab2 = st.tabs(["📝 Buat Form OPB Baru", "📦 Verifikasi Penerimaan Barang (BAST)"])
 
         with tab1:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
@@ -944,7 +887,15 @@ else:
                             file_url = upload_file_to_supabase(file_opb.getvalue(), file_opb.name, folder="opb")
                             file_name = file_opb.name
 
-                        sig_eng = generate_digital_signature("Engineering", user_info["name"], nomor_opb_auto)
+                        wib = pytz.timezone("Asia/Jakarta")
+                        waktu_sig = datetime.now(wib).strftime("%Y-%m-%d %H:%M:%S")
+                        sys_sig = {
+                            "signed_by": user_info["name"],
+                            "role": "Engineering",
+                            "timestamp": waktu_sig,
+                            "hash": f"APP-P3SRS-{nomor_opb_auto.replace('/', '-')}"
+                        }
+                        
                         data_baru = {
                             "nomor_opb": nomor_opb_auto,
                             "divisi": divisi_pilihan,
@@ -958,7 +909,7 @@ else:
                             "status": "1. Penawaran Purchasing",
                             "timeline": [],
                         }
-                        catat_log(data_baru, f"OPB Dibuat untuk Divisi {divisi_pilihan} oleh {user_info['name']}", digital_sig=sig_eng)
+                        catat_log(data_baru, f"OPB Dibuat untuk Divisi {divisi_pilihan} oleh {user_info['name']}", system_sig=sys_sig)
                         
                         res = save_database(data_baru, is_new=True)
                         if res:
@@ -979,12 +930,18 @@ else:
                 with st.expander(f"📦 {item.get('nomor_opb', '-')} - {item.get('nama_barang', '-')}", expanded=is_expanded):
                     st.write(f"**Divisi:** {item.get('divisi','IT')} | **Vendor:** {item.get('vendor', '-')}")
                     render_download_buttons(item, key_prefix="eng_tab2")
-                    render_signature_pad(f"eng_rcv_{item.get('id', 0)}")
 
-                    if st.button(f"✅ Konfirmasi & Tanda Tangan BAST", type="primary", use_container_width=True):
-                        sig_rcv = generate_digital_signature("Engineering (Penerima)", user_info["name"], item.get("nomor_opb", "OPB"))
+                    if st.button(f"✅ Konfirmasi & Verifikasi Penerimaan BAST", type="primary", use_container_width=True):
+                        wib = pytz.timezone("Asia/Jakarta")
+                        waktu_sig = datetime.now(wib).strftime("%Y-%m-%d %H:%M:%S")
+                        sys_sig = {
+                            "signed_by": user_info["name"],
+                            "role": "Engineering (Penerima)",
+                            "timestamp": waktu_sig,
+                            "hash": f"APP-RCV-{item.get('nomor_opb', 'OPB').replace('/', '-')}"
+                        }
                         item["status"] = "8. Selesai"
-                        catat_log(item, f"Barang diterima oleh {user_info['name']}. BAST Ditandatangani.", digital_sig=sig_rcv)
+                        catat_log(item, f"Barang diterima dan diverifikasi oleh {user_info['name']}. BAST Selesai.", system_sig=sys_sig)
                         save_database(item, is_new=False)
                         st.session_state["target_focus_id"] = None
                         st.rerun()
@@ -1028,11 +985,18 @@ else:
                         submit_pur = st.form_submit_button("Kirim ke BM untuk Review", type="primary", use_container_width=True)
 
                     if submit_pur:
-                        sig_pur = generate_digital_signature("Purchasing", user_info["name"], item.get("nomor_opb", "OPB"))
+                        wib = pytz.timezone("Asia/Jakarta")
+                        waktu_sig = datetime.now(wib).strftime("%Y-%m-%d %H:%M:%S")
+                        sys_sig = {
+                            "signed_by": user_info["name"],
+                            "role": "Purchasing",
+                            "timestamp": waktu_sig,
+                            "hash": f"APP-PUR-{item.get('nomor_opb', 'OPB').replace('/', '-')}"
+                        }
                         item["vendor"] = vendor_input
                         item["harga_estimasi"] = int(harga_input)
                         item["status"] = "2. Review BM"
-                        catat_log(item, f"Purchasing menentukan vendor ({vendor_input}) & harga Rp {harga_input:,}.", digital_sig=sig_pur)
+                        catat_log(item, f"Purchasing menentukan vendor ({vendor_input}) & harga Rp {harga_input:,}.", system_sig=sys_sig)
                         
                         res = save_database(item, is_new=False)
                         if res is not None:
@@ -1059,10 +1023,17 @@ else:
                     if st.button("Kirim Berkas IOM ke Finance", key=f"btn_p2_{item_id}", type="primary", use_container_width=True):
                         if file_iom:
                             iom_url = upload_file_to_supabase(file_iom.getvalue(), file_iom.name, folder="iom")
-                            sig_pur_iom = generate_digital_signature("Purchasing (IOM Draft)", user_info["name"], item.get("nomor_opb", "OPB"))
+                            wib = pytz.timezone("Asia/Jakarta")
+                            waktu_sig = datetime.now(wib).strftime("%Y-%m-%d %H:%M:%S")
+                            sys_sig = {
+                                "signed_by": user_info["name"],
+                                "role": "Purchasing (IOM Draft)",
+                                "timestamp": waktu_sig,
+                                "hash": f"APP-IOM-{item.get('nomor_opb', 'OPB').replace('/', '-')}"
+                            }
                             item["file_iom_url"] = iom_url
                             item["status"] = "4. Review Finance"
-                            catat_log(item, "Purchasing mengunggah draft IOM ke Finance.", digital_sig=sig_pur_iom)
+                            catat_log(item, "Purchasing mengunggah draft IOM ke Finance.", system_sig=sys_sig)
                             save_database(item, is_new=False)
                             st.session_state["target_focus_id"] = None
                             st.rerun()
@@ -1085,15 +1056,21 @@ else:
 
                     st.divider()
                     file_bast = st.file_uploader("Unggah BAST", type=["pdf", "jpg", "png"], key=f"bast_file_{item_id}")
-                    render_signature_pad(f"pur_bast_{item_id}")
 
                     if st.button("🚚 Serahkan Barang & BAST ke Engineering", key=f"btn_p3_{item_id}", type="primary", use_container_width=True):
                         if file_bast:
                             item["file_bast_url"] = upload_file_to_supabase(file_bast.getvalue(), file_bast.name, folder="bast")
 
-                        sig_handover = generate_digital_signature("Purchasing (Penyerah)", user_info["name"], item.get("nomor_opb", "OPB"))
+                        wib = pytz.timezone("Asia/Jakarta")
+                        waktu_sig = datetime.now(wib).strftime("%Y-%m-%d %H:%M:%S")
+                        sys_sig = {
+                            "signed_by": user_info["name"],
+                            "role": "Purchasing (Penyerah)",
+                            "timestamp": waktu_sig,
+                            "hash": f"APP-BS-{item.get('nomor_opb', 'OPB').replace('/', '-')}"
+                        }
                         item["status"] = "7. Verifikasi Penerimaan Barang (Engineering)"
-                        catat_log(item, f"Purchasing menyerahkan fisik barang & BAST ke Engineering.", digital_sig=sig_handover)
+                        catat_log(item, f"Purchasing menyerahkan fisik barang & BAST ke Engineering.", system_sig=sys_sig)
                         save_database(item, is_new=False)
                         st.session_state["target_focus_id"] = None
                         st.rerun()
@@ -1117,15 +1094,21 @@ else:
                     render_download_buttons(item, key_prefix=f"bm_tab1_{item_id}")
 
                     st.divider()
-                    render_signature_pad(f"bm1_sig_{item_id}")
                     catatan = st.text_input("Catatan / Alasan jika Minta Revisi", key=f"c_bm1_{item_id}")
 
                     col1, col2 = st.columns(2)
                     with col1:
-                        if st.button("✅ Setujui & Tanda Tangan OPB", key=f"app_bm1_{item_id}", type="primary", use_container_width=True):
-                            sig_bm = generate_digital_signature("Building Manager", user_info["name"], item.get("nomor_opb", "OPB"))
+                        if st.button("✅ Setujui & Approve OPB", key=f"app_bm1_{item_id}", type="primary", use_container_width=True):
+                            wib = pytz.timezone("Asia/Jakarta")
+                            waktu_sig = datetime.now(wib).strftime("%Y-%m-%d %H:%M:%S")
+                            sys_sig = {
+                                "signed_by": user_info["name"],
+                                "role": "Building Manager",
+                                "timestamp": waktu_sig,
+                                "hash": f"APP-BM-{item.get('nomor_opb', 'OPB').replace('/', '-')}"
+                            }
                             item["status"] = "3. Pembuatan IOM (Purchasing)"
-                            catat_log(item, "BM menyetujui OPB. Diteruskan ke Purchasing.", digital_sig=sig_bm)
+                            catat_log(item, "BM menyetujui OPB. Diteruskan ke Purchasing.", system_sig=sys_sig)
                             save_database(item, is_new=False)
                             st.session_state["target_focus_id"] = None
                             st.rerun()
@@ -1149,10 +1132,16 @@ else:
                 item_id = item.get("id", 0)
                 with st.expander(f"📑 Approval IOM: {item.get('nomor_opb', '-')}", expanded=is_expanded):
                     render_download_buttons(item, key_prefix=f"bm_tab2_{item_id}")
-                    render_signature_pad(f"bm2_sig_{item_id}")
-                    if st.button("✅ Approve & Tanda Tangan IOM Final (BM)", key=f"app_bm2_{item_id}", type="primary", use_container_width=True):
-                        sig_bm_iom = generate_digital_signature("Building Manager (IOM Final)", user_info["name"], item.get("nomor_opb", "OPB"))
-                        catat_log(item, "BM menyetujui IOM Final.", digital_sig=sig_bm_iom)
+                    if st.button("✅ Approve & Setujui IOM Final (BM)", key=f"app_bm2_{item_id}", type="primary", use_container_width=True):
+                        wib = pytz.timezone("Asia/Jakarta")
+                        waktu_sig = datetime.now(wib).strftime("%Y-%m-%d %H:%M:%S")
+                        sys_sig = {
+                            "signed_by": user_info["name"],
+                            "role": "Building Manager (IOM Final)",
+                            "timestamp": waktu_sig,
+                            "hash": f"APP-BMF-{item.get('nomor_opb', 'OPB').replace('/', '-')}"
+                        }
+                        catat_log(item, "BM menyetujui IOM Final.", system_sig=sys_sig)
                         save_database(item, is_new=False)
                         st.session_state["target_focus_id"] = None
                         st.rerun()
@@ -1174,15 +1163,21 @@ else:
                 st.write(f"**Divisi Pemohon:** {div_item} | **Nilai:** Rp {item.get('harga_estimasi', 0):,}")
                 render_download_buttons(item, key_prefix=f"fin_{item_id}")
 
-                render_signature_pad(f"fin_sig_{item_id}")
                 catatan = st.text_input("Catatan", key=f"c_fin_{item_id}")
 
                 col1, col2 = st.columns(2)
                 with col1:
-                    if st.button("✅ Verifikasi Budget", key=f"app_fin_{item_id}", type="primary", use_container_width=True):
-                        sig_fin = generate_digital_signature("Finance Officer", user_info["name"], item.get("nomor_opb", "OPB"))
+                    if st.button("✅ Verifikasi Budget & Approve", key=f"app_fin_{item_id}", type="primary", use_container_width=True):
+                        wib = pytz.timezone("Asia/Jakarta")
+                        waktu_sig = datetime.now(wib).strftime("%Y-%m-%d %H:%M:%S")
+                        sys_sig = {
+                            "signed_by": user_info["name"],
+                            "role": "Finance Officer",
+                            "timestamp": waktu_sig,
+                            "hash": f"APP-FIN-{item.get('nomor_opb', 'OPB').replace('/', '-')}"
+                        }
                         item["status"] = "5. Approval Akhir (BM & P3SRS)"
-                        catat_log(item, f"Finance memverifikasi budget Divisi {div_item}.", digital_sig=sig_fin)
+                        catat_log(item, f"Finance memverifikasi budget Divisi {div_item}.", system_sig=sys_sig)
                         save_database(item, is_new=False)
                         st.session_state["target_focus_id"] = None
                         st.rerun()
@@ -1211,15 +1206,21 @@ else:
                 harga_nilai = item.get("harga_estimasi", 0)
                 render_download_buttons(item, key_prefix=f"p3srs_{item_id}")
 
-                render_signature_pad(f"p3srs_sig_{item_id}")
                 catatan = st.text_input("Catatan", key=f"c_p3srs_{item_id}")
 
                 col1, col2 = st.columns(2)
                 with col1:
                     if st.button("✅ ACC & Potong Budget Divisi", key=f"app_p3srs_{item_id}", type="primary", use_container_width=True):
-                        sig_p3srs = generate_digital_signature("Pengurus P3SRS", user_info["name"], item.get("nomor_opb", "OPB"))
+                        wib = pytz.timezone("Asia/Jakarta")
+                        waktu_sig = datetime.now(wib).strftime("%Y-%m-%d %H:%M:%S")
+                        sys_sig = {
+                            "signed_by": user_info["name"],
+                            "role": "Pengurus P3SRS",
+                            "timestamp": waktu_sig,
+                            "hash": f"APP-P3-{item.get('nomor_opb', 'OPB').replace('/', '-')}"
+                        }
                         item["status"] = "6. Serah Terima Barang (Purchasing -> Engineering)"
-                        catat_log(item, f"P3SRS menyetujui IOM Final. Budget Divisi {div_item} terpotong Rp {harga_nilai:,}.", digital_sig=sig_p3srs)
+                        catat_log(item, f"P3SRS menyetujui IOM Final. Budget Divisi {div_item} terpotong Rp {harga_nilai:,}.", system_sig=sys_sig)
                         save_database(item, is_new=False)
                         st.session_state["target_focus_id"] = None
                         st.rerun()
