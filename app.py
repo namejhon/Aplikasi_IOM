@@ -24,7 +24,7 @@ st.set_page_config(
 )
 
 # --- 1.1 AUTO REFRESH (Polling Realtime Data tiap 5 detik) ---
-st_autorefresh(interval=5000, limit=None, key="opb_datarefresh")
+st_autorefresh(interval=30000, limit=None, key="opb_datarefresh")
 
 MYSQL_HOST = st.secrets["mysql"]["host"]
 MYSQL_USER = st.secrets["mysql"]["user"]
