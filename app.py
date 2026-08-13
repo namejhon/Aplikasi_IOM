@@ -22,8 +22,6 @@ st.set_page_config(
     initial_sidebar_state="auto",
 )
 
-# --- 1.1 AUTO REFRESH DIHILANGKAN SUPAYA CEPAT & RESPONSIF ---
-
 MYSQL_HOST = st.secrets["mysql"]["host"]
 MYSQL_USER = st.secrets["mysql"]["user"]
 MYSQL_PASSWORD = st.secrets["mysql"]["password"]
@@ -511,77 +509,31 @@ def render_enhanced_timeline(timeline_data):
 
 def render_download_buttons(item, key_prefix="dl"):
     col1, col2, col3 = st.columns([1, 1, 1])
-    
-    # 1. Tombol Download File OPB (jika berupa URL eksternal valid atau tombol unduh draft teks)
     with col1:
-        opb_url = item.get("file_opb_url")
-        if opb_url and opb_url != "Simulasi_URL_File_Lokal":
-            st.markdown(f"[📥 Download Dokumen OPB]({opb_url})")
+        if item.get("file_opb_url"):
+            st.markdown(f"[📥 Download OPB]({item['file_opb_url']})")
         else:
-            resume_text = (
-                f"=== DOKUMEN RESMI OPB ===\n"
-                f"Nomor OPB: {item.get('nomor_opb', '-')}\n"
-                f"Divisi Pemohon: {item.get('divisi', 'IT')}\n"
-                f"Tingkat Urgensi: {item.get('urgensi', 'Normal')}\n"
-                f"Rincian Barang: {item.get('nama_barang', '-')}\n"
-                f"Estimasi Harga: Rp {item.get('harga_estimasi', 0):,}\n"
-                f"Vendor Pilihan: {item.get('vendor', '-')}\n"
-                f"Keterangan: {item.get('keterangan', '-')}\n"
-            )
+            resume_text = f"RESUME DOKUMEN OPB\nNomor: {item.get('nomor_opb', '-')}\nDaftar Barang: {item.get('nama_barang', '-')}\nDivisi: {item.get('divisi','IT')}"
             st.download_button(
-                label=f"📥 Download Draft OPB (.txt)",
+                label=f"📄 Draft OPB",
                 data=resume_text.encode("utf-8"),
-                file_name=f"{str(item.get('nomor_opb', 'OPB')).replace('/', '_')}_OPB.txt",
+                file_name=f"{str(item.get('nomor_opb', 'OPB')).replace('/', '_')}.txt",
                 mime="text/plain",
                 key=f"{key_prefix}_opb_txt_{item.get('id', 0)}",
                 use_container_width=True,
             )
 
-    # 2. Tombol Download File IOM
     with col2:
-        iom_url = item.get("file_iom_url")
-        if iom_url and iom_url != "Simulasi_URL_IOM":
-            st.markdown(f"[📥 Download Dokumen IOM]({iom_url})")
+        if item.get("file_iom_url"):
+            st.markdown(f"[📥 Download IOM]({item['file_iom_url']})")
         else:
-            iom_text = (
-                f"=== DOKUMEN IZIN OPERASIONAL & MANAJEMEN (IOM) ===\n"
-                f"Nomor OPB Referensi: {item.get('nomor_opb', '-')}\n"
-                f"Divisi: {item.get('divisi', 'IT')}\n"
-                f"Vendor: {item.get('vendor', '-')}\n"
-                f"Total Biaya Disetujui: Rp {item.get('harga_estimasi', 0):,}\n"
-                f"Status Berkas: {item.get('status', '-')}\n"
-            )
-            st.download_button(
-                label=f"📥 Download Draft IOM (.txt)",
-                data=iom_text.encode("utf-8"),
-                file_name=f"{str(item.get('nomor_opb', 'OPB')).replace('/', '_')}_IOM.txt",
-                mime="text/plain",
-                key=f"{key_prefix}_iom_txt_{item.get('id', 0)}",
-                use_container_width=True,
-            )
+            st.caption("ℹ️ IOM Belum Ada")
 
-    # 3. Tombol Download File BAST
     with col3:
-        bast_url = item.get("file_bast_url")
-        if bast_url and bast_url != "Simulasi_URL_BAST":
-            st.markdown(f"[📥 Download Berita Acara BAST]({bast_url})")
+        if item.get("file_bast_url"):
+            st.markdown(f"[📦 Download BAST]({item['file_bast_url']})")
         else:
-            bast_text = (
-                f"=== BERITA ACARA SERAH TERIMA (BAST) BARANG ===\n"
-                f"Nomor OPB: {item.get('nomor_opb', '-')}\n"
-                f"Divisi Penerima: {item.get('divisi', 'IT')}\n"
-                f"Rincian Barang: {item.get('nama_barang', '-')}\n"
-                f"Vendor Pengirim: {item.get('vendor', '-')}\n"
-                f"Kondisi: Barang telah diterima dan diverifikasi dengan baik.\n"
-            )
-            st.download_button(
-                label=f"📥 Download Draft BAST (.txt)",
-                data=bast_text.encode("utf-8"),
-                file_name=f"{str(item.get('nomor_opb', 'OPB')).replace('/', '_')}_BAST.txt",
-                mime="text/plain",
-                key=f"{key_prefix}_bast_txt_{item.get('id', 0)}",
-                use_container_width=True,
-            )
+            st.caption("ℹ️ BAST Belum Ada")
 
 def render_signature_pad(key_id):
     canvas_html = f"""
