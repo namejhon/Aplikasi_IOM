@@ -79,12 +79,9 @@ def init_mysql_table():
                         status VARCHAR(100),
                         harga_estimasi BIGINT,
                         vendor VARCHAR(150),
-                        file_opb_blob LONGBLOB,
-                        file_opb_name VARCHAR(255),
-                        file_iom_blob LONGBLOB,
-                        file_iom_name VARCHAR(255),
-                        file_bast_blob LONGBLOB,
-                        file_bast_name VARCHAR(255),
+                        file_opb_url TEXT,
+                        file_iom_url TEXT,
+                        file_bast_url TEXT,
                         catatan_bm TEXT,
                         catatan_finance TEXT,
                         catatan_p3srs TEXT,
@@ -137,7 +134,7 @@ def load_database():
 
 
 def save_database(item_data, is_new=False):
-    """Menyimpan item ke MySQL termasuk file blob aslinya."""
+    """Menyimpan item ke MySQL."""
     conn = get_mysql_connection()
     if not conn:
         return None
@@ -148,8 +145,8 @@ def save_database(item_data, is_new=False):
             if is_new:
                 sql = """
                     INSERT INTO opb_data 
-                    (nama_barang, nomor_opb, jumlah, keterangan, divisi, urgensi, status, harga_estimasi, vendor, file_opb_blob, file_opb_name, file_iom_blob, file_iom_name, file_bast_blob, file_bast_name, catatan_bm, catatan_finance, catatan_p3srs, timeline)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    (nama_barang, nomor_opb, jumlah, keterangan, divisi, urgensi, status, harga_estimasi, vendor, file_opb_url, file_iom_url, file_bast_url, catatan_bm, catatan_finance, catatan_p3srs, timeline)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
                 val = (
                     str(item_data.get("nama_barang", "")),
@@ -161,12 +158,9 @@ def save_database(item_data, is_new=False):
                     str(item_data.get("status", "1. Penawaran Purchasing")),
                     int(item_data.get("harga_estimasi", 0) or 0),
                     str(item_data.get("vendor", "-")),
-                    item_data.get("file_opb_blob"),
-                    item_data.get("file_opb_name"),
-                    item_data.get("file_iom_blob"),
-                    item_data.get("file_iom_name"),
-                    item_data.get("file_bast_blob"),
-                    item_data.get("file_bast_name"),
+                    item_data.get("file_opb_url"),
+                    item_data.get("file_iom_url"),
+                    item_data.get("file_bast_url"),
                     str(item_data.get("catatan_bm", "-")),
                     str(item_data.get("catatan_finance", "-")),
                     str(item_data.get("catatan_p3srs", "-")),
@@ -177,7 +171,7 @@ def save_database(item_data, is_new=False):
                 sql = """
                     UPDATE opb_data SET 
                     nama_barang=%s, nomor_opb=%s, jumlah=%s, keterangan=%s, divisi=%s, urgensi=%s, status=%s, 
-                    harga_estimasi=%s, vendor=%s, file_opb_blob=%s, file_opb_name=%s, file_iom_blob=%s, file_iom_name=%s, file_bast_blob=%s, file_bast_name=%s, 
+                    harga_estimasi=%s, vendor=%s, file_opb_url=%s, file_iom_url=%s, file_bast_url=%s, 
                     catatan_bm=%s, catatan_finance=%s, catatan_p3srs=%s, timeline=%s
                     WHERE id=%s
                 """
@@ -191,12 +185,9 @@ def save_database(item_data, is_new=False):
                     str(item_data.get("status", "1. Penawaran Purchasing")),
                     int(item_data.get("harga_estimasi", 0) or 0),
                     str(item_data.get("vendor", "-")),
-                    item_data.get("file_opb_blob"),
-                    item_data.get("file_opb_name"),
-                    item_data.get("file_iom_blob"),
-                    item_data.get("file_iom_name"),
-                    item_data.get("file_bast_blob"),
-                    item_data.get("file_bast_name"),
+                    item_data.get("file_opb_url"),
+                    item_data.get("file_iom_url"),
+                    item_data.get("file_bast_url"),
                     str(item_data.get("catatan_bm", "-")),
                     str(item_data.get("catatan_finance", "-")),
                     str(item_data.get("catatan_p3srs", "-")),
@@ -252,10 +243,8 @@ def generate_outlook_mailto_link(item, target_email="purchasing@p3srs.com"):
     status = item.get('status', '-')
     harga = item.get('harga_estimasi', 0)
     urgensi = item.get('urgensi', 'Normal')
-    
-    opb_status_file = item.get('file_opb_name', 'Tidak ada') if item.get('file_opb_blob') else 'Belum ada'
-    iom_status_file = item.get('file_iom_name', 'Tidak ada') if item.get('file_iom_blob') else 'Belum ada'
-    bast_status_file = item.get('file_bast_name', 'Tidak ada') if item.get('file_bast_blob') else 'Belum ada'
+    opb_url = item.get('file_opb_url', '-')
+    iom_url = item.get('file_iom_url', '-')
     
     is_darurat = "darurat" in urgensi.lower()
     prefix_subjek = "🚨 [URGENT/DARURAT] " if is_darurat else "📋 "
@@ -271,10 +260,9 @@ def generate_outlook_mailto_link(item, target_email="purchasing@p3srs.com"):
         f"- Rincian Barang: {nama_barang}\n"
         f"- Estimasi Biaya: Rp {harga:,.0f}\n"
         f"- Status Berkas: {status}\n\n"
-        f"📎 Status Dokumen Lampiran:\n"
-        f"- File OPB: {opb_status_file}\n"
-        f"- File IOM: {iom_status_file}\n"
-        f"- File BAST: {bast_status_file}\n\n"
+        f"🔗 Link Dokumen Terkait:\n"
+        f"- File OPB: {opb_url if opb_url else 'Belum ada'}\n"
+        f"- File IOM: {iom_url if iom_url else 'Belum ada'}\n\n"
         f"Silakan akses portal aplikasi untuk melakukan verifikasi, persetujuan, dan tanda tangan digital.\n\n"
         f"Terima kasih.\n"
         f"(Notifikasi Otomatis Sistem Flow OPB & IOM - P3SRS)"
@@ -525,46 +513,39 @@ def render_enhanced_timeline(timeline_data):
 
 def render_download_buttons(item, key_prefix="dl"):
     col1, col2, col3 = st.columns([1, 1, 1])
-    item_id = item.get('id', 0)
-    
     with col1:
-        if item.get("file_opb_blob"):
-            file_name = item.get("file_opb_name", "dokumen_opb.pdf")
+        if item.get("file_opb_url"):
+            # Tombol download file OPB diaktifkan
             st.download_button(
-                label=f"📥 Download OPB ({file_name})",
-                data=item["file_opb_blob"],
-                file_name=file_name,
-                mime="application/octet-stream",
-                key=f"{key_prefix}_opb_{item_id}",
-                use_container_width=True,
+                label="📥 Download OPB",
+                data=str(item.get("file_opb_url", "")).encode("utf-8"),
+                file_name=f"Dokumen_{item.get('nomor_opb', 'OPB').replace('/', '_')}.txt",
+                mime="text/plain",
+                key=f"{key_prefix}_opb_{item.get('id', 0)}"
             )
         else:
-            st.caption("ℹ️ OPB Belum Ada")
+            st.caption("ℹ️ File OPB Belum Ada")
 
     with col2:
-        if item.get("file_iom_blob"):
-            file_name = item.get("file_iom_name", "dokumen_iom.pdf")
+        if item.get("file_iom_url"):
             st.download_button(
-                label=f"📥 Download IOM ({file_name})",
-                data=item["file_iom_blob"],
-                file_name=file_name,
-                mime="application/octet-stream",
-                key=f"{key_prefix}_iom_{item_id}",
-                use_container_width=True,
+                label="📥 Download IOM",
+                data=str(item.get("file_iom_url", "")).encode("utf-8"),
+                file_name=f"IOM_{item.get('nomor_opb', 'OPB').replace('/', '_')}.txt",
+                mime="text/plain",
+                key=f"{key_prefix}_iom_{item.get('id', 0)}"
             )
         else:
             st.caption("ℹ️ IOM Belum Ada")
 
     with col3:
-        if item.get("file_bast_blob"):
-            file_name = item.get("file_bast_name", "dokumen_bast.pdf")
+        if item.get("file_bast_url"):
             st.download_button(
-                label=f"📦 Download BAST ({file_name})",
-                data=item["file_bast_blob"],
-                file_name=file_name,
-                mime="application/octet-stream",
-                key=f"{key_prefix}_bast_{item_id}",
-                use_container_width=True,
+                label="📦 Download BAST",
+                data=str(item.get("file_bast_url", "")).encode("utf-8"),
+                file_name=f"BAST_{item.get('nomor_opb', 'OPB').replace('/', '_')}.txt",
+                mime="text/plain",
+                key=f"{key_prefix}_bast_{item.get('id', 0)}"
             )
         else:
             st.caption("ℹ️ BAST Belum Ada")
@@ -985,7 +966,7 @@ else:
         with tab1:
             st.markdown("<div class='content-box'>", unsafe_allow_html=True)
             st.subheader("Pengajuan OPB Baru")
-
+            
             divisi_pilihan = st.selectbox("Divisi Pemohon", DIVISI_LIST, key="select_divisi_pemohon")
             budget_div_info = budget_summary.get(divisi_pilihan, {"sisa": 1_000_000_000})
             st.info(f"💰 **Sisa Budget Terkini Divisi {divisi_pilihan}:** Rp {budget_div_info['sisa']:,}")
@@ -996,7 +977,6 @@ else:
 
             st.text_input("Nomor OPB (Otomatis)", value=nomor_opb_auto, disabled=True)
 
-            # --- FORM PEMBUATAN OPB BARU ---
             with st.form(key="form_opb_engineering", clear_on_submit=True):
                 urgensi = st.radio(
                     "Tingkat Urgensi / Jenis OPB",
@@ -1010,41 +990,41 @@ else:
                 )
                 nama_barang = st.text_area("Detail Pengajuan Barang", placeholder="Misal: 1 RAM, 2 SSD...")
                 keterangan = st.text_area("Alasan Kebutuhan & Spesifikasi")
-                file_opb = st.file_uploader("Unggah Dokumen Lampiran BA / OPB", type=["pdf", "docx", "xlsx", "png", "jpg"])
+                file_opb = st.file_uploader("Unggah Dokumen Lampiran BA", type=["pdf", "docx", "xlsx"])
 
                 submit = st.form_submit_button("🚀 Submit & Kirim OPB ke Purchasing", type="primary", use_container_width=True)
 
                 if submit:
-                    if nama_barang:
-                        file_opb_blob = None
-                        file_opb_name = None
-                        if file_opb is not None:
-                            file_opb_blob = file_opb.getvalue()
-                            file_opb_name = file_opb.name
-
-                        sig_eng = generate_digital_signature("Engineering", user_info["name"], nomor_opb_auto)
-                        data_baru = {
+                    if not nama_barang.strip():
+                        st.error("Detail pengajuan barang tidak boleh kosong!")
+                    else:
+                        file_url_val = "Simulasi_URL_Dokumen_OPB" if file_opb else None
+                        new_item = {
                             "nomor_opb": nomor_opb_auto,
                             "divisi": divisi_pilihan,
                             "urgensi": urgensi,
                             "nama_barang": nama_barang,
                             "jumlah": 1,
                             "keterangan": keterangan,
-                            "file_opb_blob": file_opb_blob,
-                            "file_opb_name": file_opb_name,
+                            "status": "1. Penawaran Purchasing",
                             "harga_estimasi": 0,
                             "vendor": "-",
-                            "status": "1. Penawaran Purchasing",
-                            "timeline": [],
+                            "file_opb_url": file_url_val,
+                            "file_iom_url": None,
+                            "file_bast_url": None,
+                            "catatan_bm": "-",
+                            "catatan_finance": "-",
+                            "catatan_p3srs": "-",
+                            "timeline": []
                         }
-                        catat_log(data_baru, f"OPB Dibuat untuk Divisi {divisi_pilihan} oleh {user_info['name']}", digital_sig=sig_eng)
+                        sig_eng = generate_digital_signature("Engineering", user_info["name"], nomor_opb_auto)
+                        catat_log(new_item, f"OPB baru dibuat oleh {user_info['name']} ({divisi_pilihan}).", digital_sig=sig_eng)
                         
-                        res = save_database(data_baru, is_new=True)
-                        if res:
-                            st.success("🚀 OPB Berhasil diteruskan ke Purchasing!")
+                        res = save_database(new_item, is_new=True)
+                        if res is not None:
+                            st.success("✅ OPB Berhasil Disubmit & Dikirim ke Purchasing!")
+                            st.session_state["db_opb"] = load_database()
                             st.rerun()
-                    else:
-                        st.warning("Mohon isi Detail Barang terlebih dahulu.")
             st.markdown("</div>", unsafe_allow_html=True)
 
         with tab2:
@@ -1134,12 +1114,11 @@ else:
                     render_download_buttons(item, key_prefix=f"pur_tab2_{item_id}")
 
                     st.divider()
-                    file_iom = st.file_uploader("Unggah Draft Dokumen IOM Asli", type=["pdf", "docx", "xlsx"], key=f"fiom_{item_id}")
+                    file_iom = st.file_uploader("Unggah Draft Dokumen IOM", type=["pdf", "docx"], key=f"fiom_{item_id}")
                     if st.button("Kirim Berkas IOM ke Finance", key=f"btn_p2_{item_id}", type="primary", use_container_width=True):
-                        if file_iom is not None:
+                        if file_iom:
                             sig_pur_iom = generate_digital_signature("Purchasing (IOM Draft)", user_info["name"], item.get("nomor_opb", "OPB"))
-                            item["file_iom_blob"] = file_iom.getvalue()
-                            item["file_iom_name"] = file_iom.name
+                            item["file_iom_url"] = "Simulasi_URL_IOM"
                             item["status"] = "4. Review Finance"
                             catat_log(item, "Purchasing mengunggah draft IOM ke Finance.", digital_sig=sig_pur_iom)
                             save_database(item, is_new=False)
@@ -1163,13 +1142,12 @@ else:
                     render_download_buttons(item, key_prefix=f"pur_tab3_{item_id}")
 
                     st.divider()
-                    file_bast = st.file_uploader("Unggah Dokumen BAST Asli", type=["pdf", "jpg", "png", "docx"], key=f"bast_file_{item_id}")
+                    file_bast = st.file_uploader("Unggah BAST", type=["pdf", "jpg", "png"], key=f"bast_file_{item_id}")
                     render_signature_pad(f"pur_bast_{item_id}")
 
                     if st.button("🚚 Serahkan Barang & BAST ke Engineering", key=f"btn_p3_{item_id}", type="primary", use_container_width=True):
-                        if file_bast is not None:
-                            item["file_bast_blob"] = file_bast.getvalue()
-                            item["file_bast_name"] = file_bast.name
+                        if file_bast:
+                            item["file_bast_url"] = "Simulasi_URL_BAST"
 
                         sig_handover = generate_digital_signature("Purchasing (Penyerah)", user_info["name"], item.get("nomor_opb", "OPB"))
                         item["status"] = "7. Verifikasi Penerimaan Barang (Engineering)"
