@@ -23,7 +23,7 @@ st.set_page_config(
     initial_sidebar_state="auto",
 )
 
-# --- 1.1 AUTO REFRESH (Polling Realtime Data tiap 5 detik) ---
+# --- 1.1 AUTO REFRESH (Diubah menjadi 30 detik agar mengurangi efek ngedip) ---
 st_autorefresh(interval=30000, limit=None, key="opb_datarefresh")
 
 MYSQL_HOST = st.secrets["mysql"]["host"]
